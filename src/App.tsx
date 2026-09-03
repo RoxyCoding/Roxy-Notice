@@ -646,9 +646,9 @@ function App() {
             <section className="settings-group" aria-labelledby="static-edition-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><RefreshCw size={19} /></div>
-                <div><h2 id="static-edition-heading">サーバー不要版</h2><p>すべてGitHub Pagesまたはブラウザ上で取得</p></div>
+                <div><h2 id="static-edition-heading">サーバー不要版</h2><p>GitHub Pagesとブラウザだけで更新</p></div>
               </div>
-              <p className="unofficial-note">YouTubeは利用者自身のData APIキー、Xは公開タイムラインAPIをブラウザから使用します。ASMRとSplatoonはGitHub Actionsが5分ごとに更新します。</p>
+              <p className="unofficial-note">YouTubeは利用者自身のData APIキー、Xは公開タイムラインAPIをブラウザから使用します。Splatoonは1分ごとに直接取得し、ASMRはGitHub Actionsで更新します。</p>
             </section>
 
             <section className="settings-group" aria-labelledby="category-heading">
@@ -720,10 +720,10 @@ function App() {
           </div>
           <ToggleRow label="メール通知" caption="重要な更新だけ" enabled={emailEnabled} onChange={setEmailEnabled} />
           <ToggleRow label="ブラウザ通知" caption="新着をこの端末に表示" enabled={pushEnabled} onChange={updatePushEnabled} />
-          <p className="demo-note">YouTube・X・Splatoonは1分ごと、ASMRは5分ごとに確認します。</p>
+          <p className="demo-note">X・Splatoonは1分ごと、YouTube・ASMRは5分ごとに確認します。</p>
         </section>
 
-        <footer className="rail-footer">YouTube・X・Splatoonは1分ごと、ASMRは5分ごとに確認します。</footer>
+        <footer className="rail-footer">X・Splatoonは1分ごと、YouTube・ASMRは5分ごとに確認します。</footer>
         </> : <>
           <section className="rail-section settings-summary-card">
             <div className="section-heading">
