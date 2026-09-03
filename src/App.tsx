@@ -30,9 +30,11 @@ import {
   isRecentYouTubeItem,
   getYouTubeReadId,
   loadReadYouTubeItems,
+  loadYouTubeApiKey,
   loadYouTubeChannels,
   loadYouTubeExcludedWords,
   saveReadYouTubeItems,
+  saveYouTubeApiKey,
   saveYouTubeChannels,
   saveYouTubeExcludedWords,
   useYouTubeNotifications,
@@ -102,8 +104,7 @@ const navItems = [
   { id: 'settings', label: '設定', icon: Settings },
 ] as const
 
-const filters: NoticeCategory[] = ['すべて', 'ASMR', 'Splatoon']
-const supportsPersonalSources = false
+const filters: NoticeCategory[] = ['すべて', 'YouTube', 'X', 'ASMR', 'Splatoon']
 
 function App() {
   const [notices, setNotices] = useState(initialNotices)
@@ -116,19 +117,20 @@ function App() {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [inAppEnabled, setInAppEnabled] = useState(true)
   const [compactView, setCompactView] = useState(false)
-  const [enabledCategories, setEnabledCategories] = useState<Array<Exclude<NoticeCategory, 'すべて'>>>(['ASMR', 'Splatoon'])
+  const [enabledCategories, setEnabledCategories] = useState<Array<Exclude<NoticeCategory, 'すべて'>>>(['YouTube', 'X', 'ASMR', 'Splatoon'])
   const [activePage, setActivePage] = useState<'home' | 'settings'>('home')
   const [xUsers, setXUsers] = useState(loadXUsers)
   const [xUserInput, setXUserInput] = useState('')
   const [readXItems, setReadXItems] = useState(() => new Set(loadReadXItems()))
   const [youtubeChannels, setYoutubeChannels] = useState(loadYouTubeChannels)
+  const [youtubeApiKey, setYouTubeApiKey] = useState(loadYouTubeApiKey)
   const [youtubeChannelInput, setYoutubeChannelInput] = useState('')
   const [youtubeExcludedWords, setYouTubeExcludedWords] = useState(loadYouTubeExcludedWords)
   const [youtubeExcludedWordInput, setYouTubeExcludedWordInput] = useState('')
   const [readYouTubeItems, setReadYouTubeItems] = useState(() => new Set(loadReadYouTubeItems()))
   const [readAsmrItems, setReadAsmrItems] = useState(() => new Set(loadReadAsmrItems()))
   const [readSplatoonItems, setReadSplatoonItems] = useState(() => new Set(loadReadSplatoonItems()))
-  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeExcludedWords)
+  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeExcludedWords, youtubeApiKey)
   const xFeed = useXNotifications(xUsers, pushEnabled)
   const asmrFeed = useAsmrNotifications(pushEnabled)
   const splatoonFeed = useSplatoonStages(pushEnabled)
@@ -136,6 +138,7 @@ function App() {
   useEffect(() => saveXUsers(xUsers), [xUsers])
   useEffect(() => saveReadXItems([...readXItems]), [readXItems])
   useEffect(() => saveYouTubeChannels(youtubeChannels), [youtubeChannels])
+  useEffect(() => saveYouTubeApiKey(youtubeApiKey), [youtubeApiKey])
   useEffect(() => saveYouTubeExcludedWords(youtubeExcludedWords), [youtubeExcludedWords])
   useEffect(() => saveReadYouTubeItems([...readYouTubeItems]), [readYouTubeItems])
   useEffect(() => saveReadAsmrItems([...readAsmrItems]), [readAsmrItems])
@@ -431,7 +434,7 @@ function App() {
             <div className="empty-state youtube-empty">
               <Youtube size={28} />
               <h2>YouTubeチャンネルを登録</h2>
-              <p>ライブ配信枠と新しい投稿を1分ごとに確認します。</p>
+              <p>APIキーを設定し、ライブ配信枠と新しい動画を5分ごとに確認します。</p>
               <button onClick={() => setActivePage('settings')}>設定を開く</button>
             </div>
           ) : filter === 'YouTube' && youtubeFeed.loading && !youtubeFeed.items.length ? (
@@ -536,14 +539,23 @@ function App() {
               </div>
             </section>
 
-            {supportsPersonalSources && <>
             <section className="settings-group" aria-labelledby="youtube-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><Youtube size={19} /></div>
-                <div><h2 id="youtube-heading">YouTubeチャンネル</h2><p>画面を開いている間、1分ごとに確認</p></div>
+                <div><h2 id="youtube-heading">YouTubeチャンネル</h2><p>ブラウザから5分ごとに確認</p></div>
                 {youtubeFeed.loading && <LoaderCircle className="spin" size={18} />}
               </div>
               <div className="youtube-channel-settings">
+                <div className="channel-input-row">
+                  <input
+                    type="password"
+                    value={youtubeApiKey}
+                    onChange={(event) => setYouTubeApiKey(event.target.value)}
+                    placeholder="YouTube Data APIキー"
+                    aria-label="YouTube Data APIキー"
+                    autoComplete="off"
+                  />
+                </div>
                 <div className="channel-input-row">
                   <input
                     value={youtubeChannelInput}
@@ -566,7 +578,7 @@ function App() {
                   </div>
                 ) : <p className="channel-help">登録するとYouTubeタブに実際のライブ配信枠と投稿が表示されます。</p>}
                 {youtubeFeed.warnings.length > 0 && <p className="channel-warning">{youtubeFeed.warnings[0]}</p>}
-                <p className="unofficial-note">非公式APIを使用するため、YouTube側の変更により一時的に取得できない場合があります。</p>
+                <p className="unofficial-note">APIキーはこのブラウザだけに保存されます。Google CloudでHTTPリファラーをこのPages URLに制限してください。コミュニティ投稿は公式APIの対象外です。</p>
                 <div className="exclude-word-settings">
                   <strong>ライブ予定の除外ワード</strong>
                   <p>タイトルに含まれるライブ予定を表示・通知しません。</p>
@@ -630,14 +642,13 @@ function App() {
                 <p className="unofficial-note">非公式APIを使用するため、X側の変更により一時的に取得できない場合があります。</p>
               </div>
             </section>
-            </>}
 
             <section className="settings-group" aria-labelledby="static-edition-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><RefreshCw size={19} /></div>
-                <div><h2 id="static-edition-heading">サーバー不要版</h2><p>ASMRとSplatoonを5分ごとに自動更新</p></div>
+                <div><h2 id="static-edition-heading">サーバー不要版</h2><p>すべてGitHub Pagesまたはブラウザ上で取得</p></div>
               </div>
-              <p className="unofficial-note">YouTubeとXはブラウザごとの登録内容を外部サイトへ代理照会するサーバーが必要なため、この版では対象外です。</p>
+              <p className="unofficial-note">YouTubeは利用者自身のData APIキー、Xは公開タイムラインAPIをブラウザから使用します。ASMRとSplatoonはGitHub Actionsが5分ごとに更新します。</p>
             </section>
 
             <section className="settings-group" aria-labelledby="category-heading">

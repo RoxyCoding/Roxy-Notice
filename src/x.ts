@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { TweetViewerClient } from '../api/TweetViewer-API-Wrapper-Node.js-main/src/client.js'
 
 export type XNotificationItem = {
   id: string
@@ -32,6 +33,49 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
 })
+const xClient = new TweetViewerClient({ timeoutMs: 20_000 })
+
+async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
+  const profiles: XApiResponse['users'] = []
+  const notifications: XNotificationItem[] = []
+  const warnings: string[] = []
+
+  for (const handle of users) {
+    try {
+      const timeline = await xClient.getTimeline(handle)
+      const profile = timeline.profile
+      profiles.push({
+        handle: profile?.handle ?? handle,
+        displayName: profile?.displayName ?? handle,
+        avatarUrl: profile?.avatar ?? null,
+      })
+      notifications.push(...timeline.tweets
+        .filter((tweet) => tweet.id && !tweet.isRetweet)
+        .slice(0, 12)
+        .map((tweet) => ({
+          id: `x:${tweet.id}`,
+          userHandle: profile?.handle ?? handle,
+          authorHandle: tweet.authorHandle ?? profile?.handle ?? handle,
+          authorName: tweet.authorName ?? profile?.displayName ?? handle,
+          avatarUrl: tweet.authorAvatar ?? profile?.avatar ?? null,
+          text: tweet.text,
+          url: tweet.permalink,
+          createdAt: tweet.createdAt,
+          thumbnailUrl: tweet.media?.[0]?.thumb ?? tweet.media?.[0]?.video?.poster ?? tweet.media?.[0]?.url ?? null,
+          isReply: Boolean(tweet.isReply),
+        })))
+    } catch (error) {
+      warnings.push(`@${handle}: ${error instanceof Error ? error.message : '取得に失敗しました。'}`)
+    }
+  }
+
+  return {
+    fetchedAt: new Date().toISOString(),
+    users: profiles,
+    notifications: notifications.sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)),
+    warnings,
+  }
+}
 
 function loadStringArray(key: string): string[] {
   try {
@@ -111,14 +155,6 @@ export function useXNotifications(users: string[], pushEnabled: boolean) {
       return
     }
 
-    setItems([])
-    setProfiles([])
-    setLoading(false)
-    setWarnings([])
-    setLastUpdated(null)
-    setError('サーバー不要版では、ブラウザから追加したXユーザーの取得には対応していません。')
-    return
-
     let cancelled = false
     const userKey = users.join('|')
     if (activeUserKey.current !== userKey) {
@@ -129,17 +165,7 @@ export function useXNotifications(users: string[], pushEnabled: boolean) {
     const load = async (showLoading = false) => {
       if (showLoading) setLoading(true)
       try {
-        const params = new URLSearchParams({ users: users.join(',') })
-        const response = await fetch(`/api/x/notifications?${params}`, { headers: { Accept: 'application/json' } })
-        const responseText = await response.text()
-        if (!responseText.trim()) throw new Error(`X取得APIから応答がありません（${response.status}）。サーバーを再起動してください。`)
-        let data: XApiResponse
-        try {
-          data = JSON.parse(responseText) as XApiResponse
-        } catch {
-          throw new Error('X取得APIの応答を読み取れませんでした。サーバーを再起動してください。')
-        }
-        if (!response.ok) throw new Error(data.error || `Xから取得できませんでした（${response.status}）`)
+        const data = await fetchXNotifications(users)
         if (cancelled || activeUserKey.current !== userKey) return
 
         const freshItems = seenIds.current

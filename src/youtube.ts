@@ -24,10 +24,106 @@ type YouTubeApiResponse = {
 }
 
 const CHANNEL_STORAGE_KEY = 'roxy-notice:youtube-channels'
+const API_KEY_STORAGE_KEY = 'roxy-notice:youtube-api-key'
 const EXCLUDED_WORD_STORAGE_KEY = 'roxy-notice:youtube-excluded-words'
 const READ_STORAGE_KEY = 'roxy-notice:youtube-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:youtube-notified-items'
 const LIVE_SCHEDULE_STORAGE_KEY = 'roxy-notice:youtube-live-schedules'
+
+export function loadYouTubeApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
+}
+
+export function saveYouTubeApiKey(apiKey: string) {
+  if (apiKey.trim()) localStorage.setItem(API_KEY_STORAGE_KEY, apiKey.trim())
+  else localStorage.removeItem(API_KEY_STORAGE_KEY)
+}
+
+function isValidYouTubeApiKey(apiKey: string) {
+  return /^AIza[\w-]{35}$/.test(apiKey.trim())
+}
+
+async function youtubeGet<T>(resource: string, params: Record<string, string>, apiKey: string): Promise<T> {
+  const query = new URLSearchParams({ ...params, key: apiKey })
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/${resource}?${query}`)
+  const data = await response.json() as T & { error?: { message?: string } }
+  if (!response.ok) throw new Error(data.error?.message || `YouTube Data APIエラー（${response.status}）`)
+  return data
+}
+
+function channelLookup(input: string): Record<string, string> {
+  const trimmed = input.trim()
+  if (/^UC[\w-]{22}$/.test(trimmed)) return { id: trimmed }
+  if (trimmed.startsWith('@')) return { forHandle: trimmed.slice(1) }
+  const url = new URL(trimmed)
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (parts[0] === 'channel' && parts[1]) return { id: parts[1] }
+  if (parts[0]?.startsWith('@')) return { forHandle: parts[0].slice(1) }
+  throw new Error(`チャンネル指定「${input}」は、@ハンドルまたはUC形式のIDを使用してください。`)
+}
+
+async function fetchYouTubeNotifications(channels: string[], apiKey: string): Promise<YouTubeApiResponse> {
+  const notifications: YouTubeNotificationItem[] = []
+  const resolvedChannels: YouTubeApiResponse['channels'] = []
+  const warnings: string[] = []
+
+  for (const input of channels) {
+    try {
+      const channelData = await youtubeGet<{ items?: Array<{ id: string; snippet?: { title?: string; thumbnails?: Record<string, { url?: string }> }; contentDetails?: { relatedPlaylists?: { uploads?: string } } }> }>(
+        'channels',
+        { part: 'snippet,contentDetails', ...channelLookup(input) },
+        apiKey,
+      )
+      const channel = channelData.items?.[0]
+      const uploads = channel?.contentDetails?.relatedPlaylists?.uploads
+      if (!channel || !uploads) throw new Error('チャンネルが見つかりません。')
+
+      const playlist = await youtubeGet<{ items?: Array<{ contentDetails?: { videoId?: string } }> }>(
+        'playlistItems',
+        { part: 'contentDetails', playlistId: uploads, maxResults: '12' },
+        apiKey,
+      )
+      const ids = (playlist.items ?? []).map((item) => item.contentDetails?.videoId).filter((id): id is string => Boolean(id))
+      const videos = ids.length
+        ? await youtubeGet<{ items?: Array<{ id: string; snippet?: { title?: string; description?: string; publishedAt?: string; liveBroadcastContent?: string; thumbnails?: Record<string, { url?: string }> }; liveStreamingDetails?: { scheduledStartTime?: string; actualStartTime?: string } }> }>(
+          'videos',
+          { part: 'snippet,liveStreamingDetails', id: ids.join(',') },
+          apiKey,
+        )
+        : { items: [] }
+      const thumbnails = channel.snippet?.thumbnails
+      const avatarUrl = thumbnails?.high?.url ?? thumbnails?.medium?.url ?? thumbnails?.default?.url ?? null
+      const channelName = channel.snippet?.title ?? input
+      resolvedChannels.push({ input, id: channel.id, name: channelName })
+
+      for (const video of videos.items ?? []) {
+        const scheduled = video.liveStreamingDetails?.scheduledStartTime
+        const isLive = video.snippet?.liveBroadcastContent === 'live'
+        const isUpcoming = video.snippet?.liveBroadcastContent === 'upcoming'
+        const published = scheduled ?? video.snippet?.publishedAt ?? null
+        const videoThumbs = video.snippet?.thumbnails
+        notifications.push({
+          id: `youtube:${isLive || isUpcoming ? 'live' : 'post'}:${video.id}`,
+          kind: isLive || isUpcoming ? 'live' : 'post',
+          channelId: channel.id,
+          channelName,
+          avatarUrl,
+          title: video.snippet?.title ?? 'YouTube動画',
+          body: video.snippet?.description?.slice(0, 240) || (isLive ? 'ライブ配信中です。' : '新しい動画が公開されました。'),
+          url: `https://www.youtube.com/watch?v=${encodeURIComponent(video.id)}`,
+          thumbnailUrl: videoThumbs?.high?.url ?? videoThumbs?.medium?.url ?? videoThumbs?.default?.url ?? null,
+          publishedText: published ? new Date(published).toLocaleString('ja-JP') : null,
+          isLive,
+          isUpcoming,
+        })
+      }
+    } catch (error) {
+      warnings.push(`${input}: ${error instanceof Error ? error.message : '取得に失敗しました。'}`)
+    }
+  }
+
+  return { fetchedAt: new Date().toISOString(), channels: resolvedChannels, notifications, warnings }
+}
 
 function loadStringArray(key: string): string[] {
   try {
@@ -103,7 +199,7 @@ export function hasLiveScheduleChanged(item: YouTubeNotificationItem, previousTi
   return item.kind === 'live' && item.isUpcoming && previousTime !== undefined && previousTime !== (item.publishedText ?? '')
 }
 
-export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, excludedWords: string[]) {
+export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, excludedWords: string[], apiKey: string) {
   const [items, setItems] = useState<YouTubeNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -133,12 +229,22 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       return
     }
 
-    setItems([])
-    setLoading(false)
-    setWarnings([])
-    setLastUpdated(null)
-    setError('サーバー不要版では、ブラウザから追加したYouTubeチャンネルの取得には対応していません。')
-    return
+    if (!apiKey.trim()) {
+      setItems([])
+      setLoading(false)
+      setWarnings([])
+      setLastUpdated(null)
+      setError('YouTube Data APIキーを設定してください。')
+      return
+    }
+    if (!isValidYouTubeApiKey(apiKey)) {
+      setItems([])
+      setLoading(false)
+      setWarnings([])
+      setLastUpdated(null)
+      setError('YouTube Data APIキーの形式を確認してください。')
+      return
+    }
 
     let cancelled = false
     const channelKey = channels.join('|')
@@ -150,10 +256,8 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
     const load = async (showLoading = false) => {
       if (showLoading) setLoading(true)
       try {
-        const params = new URLSearchParams({ channels: channels.join(',') })
-        const response = await fetch(`/api/youtube/notifications?${params}`, { headers: { Accept: 'application/json' } })
-        const data = await response.json() as YouTubeApiResponse
-        if (!response.ok) throw new Error(data.error || `YouTubeから取得できませんでした（${response.status}）`)
+        const data = await fetchYouTubeNotifications(channels, apiKey)
+        if (!data.channels.length && data.warnings.length) throw new Error(data.warnings[0])
         if (cancelled || activeChannelKey.current !== channelKey) return
 
         const eligibleItems = data.notifications.filter((item) => !isExcludedLiveItem(item, excludedWords))
@@ -224,12 +328,12 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
     }
 
     void load(true)
-    const timer = window.setInterval(() => void load(), 60_000)
+    const timer = window.setInterval(() => void load(), 5 * 60_000)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [channels, excludedWords, refreshVersion])
+  }, [apiKey, channels, excludedWords, refreshVersion])
 
   return { items: items.filter((item) => !isExcludedLiveItem(item, excludedWords)), loading, error, warnings, lastUpdated, refresh }
 }
