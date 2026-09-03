@@ -102,7 +102,8 @@ const navItems = [
   { id: 'settings', label: '設定', icon: Settings },
 ] as const
 
-const filters: NoticeCategory[] = ['すべて', 'YouTube', 'X', 'ASMR', 'Splatoon']
+const filters: NoticeCategory[] = ['すべて', 'ASMR', 'Splatoon']
+const supportsPersonalSources = false
 
 function App() {
   const [notices, setNotices] = useState(initialNotices)
@@ -115,7 +116,7 @@ function App() {
   const [pushEnabled, setPushEnabled] = useState(false)
   const [inAppEnabled, setInAppEnabled] = useState(true)
   const [compactView, setCompactView] = useState(false)
-  const [enabledCategories, setEnabledCategories] = useState<Array<Exclude<NoticeCategory, 'すべて'>>>(['YouTube', 'X', 'ASMR', 'Splatoon'])
+  const [enabledCategories, setEnabledCategories] = useState<Array<Exclude<NoticeCategory, 'すべて'>>>(['ASMR', 'Splatoon'])
   const [activePage, setActivePage] = useState<'home' | 'settings'>('home')
   const [xUsers, setXUsers] = useState(loadXUsers)
   const [xUserInput, setXUserInput] = useState('')
@@ -418,7 +419,7 @@ function App() {
           <div className={`youtube-sync-bar ${asmrFeed.error ? 'has-error' : ''}`}>
             <div className="youtube-sync-copy">
               {asmrFeed.loading ? <LoaderCircle className="spin" size={16} /> : <Headphones size={17} />}
-              <span>{asmrFeed.error || asmrFeed.warnings[0] || '3サイトの新着作品を監視中'}</span>
+              <span>{asmrFeed.error || asmrFeed.warnings[0] || '5分ごとに静的データを更新'}</span>
               {asmrFeed.lastUpdated && !asmrFeed.error && <small>{asmrFeed.lastUpdated.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' })} 更新</small>}
             </div>
             <button className="icon-button small" onClick={asmrFeed.refresh} aria-label="ASMR通知を再取得" disabled={asmrFeed.loading}><RefreshCw size={16} /></button>
@@ -456,7 +457,7 @@ function App() {
             <div className="empty-state">
               <LoaderCircle className="spin" size={28} />
               <h2>ASMR作品を確認しています</h2>
-              <p>3サイトのRSSとDLsite情報を取得中です。</p>
+              <p>GitHub Pagesの静的データを読み込んでいます。</p>
             </div>
           ) : filter === 'Splatoon' && splatoonFeed.loading && !splatoonFeed.items.length ? (
             <div className="empty-state">
@@ -535,6 +536,7 @@ function App() {
               </div>
             </section>
 
+            {supportsPersonalSources && <>
             <section className="settings-group" aria-labelledby="youtube-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><Youtube size={19} /></div>
@@ -627,6 +629,15 @@ function App() {
                 {(xFeed.error || xFeed.warnings[0]) && <p className="channel-warning">{xFeed.error || xFeed.warnings[0]}</p>}
                 <p className="unofficial-note">非公式APIを使用するため、X側の変更により一時的に取得できない場合があります。</p>
               </div>
+            </section>
+            </>}
+
+            <section className="settings-group" aria-labelledby="static-edition-heading">
+              <div className="settings-group-heading">
+                <div className="settings-icon"><RefreshCw size={19} /></div>
+                <div><h2 id="static-edition-heading">サーバー不要版</h2><p>ASMRとSplatoonを5分ごとに自動更新</p></div>
+              </div>
+              <p className="unofficial-note">YouTubeとXはブラウザごとの登録内容を外部サイトへ代理照会するサーバーが必要なため、この版では対象外です。</p>
             </section>
 
             <section className="settings-group" aria-labelledby="category-heading">

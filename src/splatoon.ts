@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl } from './api'
+import { staticDataUrl } from './api'
 
 export type SplatoonStageItem = {
   id: string
@@ -68,14 +68,14 @@ export function useSplatoonStages(pushEnabled: boolean) {
     const load = async (showLoading = false) => {
       if (showLoading) setLoading(true)
       try {
-        const response = await fetch(apiUrl('/api/splatoon/stages'), { headers: { Accept: 'application/json' } })
+        const response = await fetch(staticDataUrl('splatoon.json'), { headers: { Accept: 'application/json' } })
         const responseText = await response.text()
-        if (!responseText.trim()) throw new Error(`ステージ取得APIから応答がありません（${response.status}）。サーバーを再起動してください。`)
+        if (!responseText.trim()) throw new Error(`ステージ静的データが空です（${response.status}）。`)
         let data: SplatoonApiResponse
         try {
           data = JSON.parse(responseText) as SplatoonApiResponse
         } catch {
-          throw new Error('ステージ取得APIの応答を読み取れませんでした。サーバーを再起動してください。')
+          throw new Error('ステージ静的データを読み取れませんでした。次回の自動更新をお待ちください。')
         }
         if (!response.ok) throw new Error(data.error || `ステージ情報を取得できませんでした（${response.status}）`)
         if (cancelled) return

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl } from './api'
 
 export type YouTubeNotificationItem = {
   id: string
@@ -134,6 +133,13 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       return
     }
 
+    setItems([])
+    setLoading(false)
+    setWarnings([])
+    setLastUpdated(null)
+    setError('サーバー不要版では、ブラウザから追加したYouTubeチャンネルの取得には対応していません。')
+    return
+
     let cancelled = false
     const channelKey = channels.join('|')
     if (activeChannelKey.current !== channelKey) {
@@ -145,7 +151,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       if (showLoading) setLoading(true)
       try {
         const params = new URLSearchParams({ channels: channels.join(',') })
-        const response = await fetch(apiUrl(`/api/youtube/notifications?${params}`), { headers: { Accept: 'application/json' } })
+        const response = await fetch(`/api/youtube/notifications?${params}`, { headers: { Accept: 'application/json' } })
         const data = await response.json() as YouTubeApiResponse
         if (!response.ok) throw new Error(data.error || `YouTubeから取得できませんでした（${response.status}）`)
         if (cancelled || activeChannelKey.current !== channelKey) return

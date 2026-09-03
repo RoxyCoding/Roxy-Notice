@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl } from './api'
+import { staticDataUrl } from './api'
 
 export type AsmrNotificationItem = {
   id: string
@@ -83,14 +83,14 @@ export function useAsmrNotifications(pushEnabled: boolean) {
     const load = async (showLoading = false) => {
       if (showLoading) setLoading(true)
       try {
-        const response = await fetch(apiUrl('/api/asmr/notifications'), { headers: { Accept: 'application/json' } })
+        const response = await fetch(staticDataUrl('asmr.json'), { headers: { Accept: 'application/json' } })
         const responseText = await response.text()
-        if (!responseText.trim()) throw new Error(`ASMR取得APIから応答がありません（${response.status}）。サーバーを再起動してください。`)
+        if (!responseText.trim()) throw new Error(`ASMR静的データが空です（${response.status}）。`)
         let data: AsmrApiResponse
         try {
           data = JSON.parse(responseText) as AsmrApiResponse
         } catch {
-          throw new Error('ASMR取得APIの応答を読み取れませんでした。サーバーを再起動してください。')
+          throw new Error('ASMR静的データを読み取れませんでした。次回の自動更新をお待ちください。')
         }
         if (!response.ok) throw new Error(data.error || `ASMR作品を取得できませんでした（${response.status}）`)
         if (!data.notifications.length && data.warnings.length === data.sources.length) throw new Error(data.warnings[0] || 'ASMR作品を取得できませんでした。')

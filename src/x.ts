@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl } from './api'
 
 export type XNotificationItem = {
   id: string
@@ -112,6 +111,14 @@ export function useXNotifications(users: string[], pushEnabled: boolean) {
       return
     }
 
+    setItems([])
+    setProfiles([])
+    setLoading(false)
+    setWarnings([])
+    setLastUpdated(null)
+    setError('サーバー不要版では、ブラウザから追加したXユーザーの取得には対応していません。')
+    return
+
     let cancelled = false
     const userKey = users.join('|')
     if (activeUserKey.current !== userKey) {
@@ -123,7 +130,7 @@ export function useXNotifications(users: string[], pushEnabled: boolean) {
       if (showLoading) setLoading(true)
       try {
         const params = new URLSearchParams({ users: users.join(',') })
-        const response = await fetch(apiUrl(`/api/x/notifications?${params}`), { headers: { Accept: 'application/json' } })
+        const response = await fetch(`/api/x/notifications?${params}`, { headers: { Accept: 'application/json' } })
         const responseText = await response.text()
         if (!responseText.trim()) throw new Error(`X取得APIから応答がありません（${response.status}）。サーバーを再起動してください。`)
         let data: XApiResponse

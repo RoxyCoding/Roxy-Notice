@@ -1,5 +1,3 @@
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
-
-export function apiUrl(path: `/${string}`) {
-  return configuredApiBaseUrl ? `${configuredApiBaseUrl}${path}` : path
+export function staticDataUrl(fileName: string) {
+  return `${import.meta.env.BASE_URL}data/${fileName}?v=${Date.now()}`
 }
