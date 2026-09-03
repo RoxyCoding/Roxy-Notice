@@ -14,7 +14,6 @@ import {
   Headphones,
   Inbox,
   LoaderCircle,
-  Mail,
   Menu,
   Plus,
   RefreshCw,
@@ -113,7 +112,6 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [emailEnabled, setEmailEnabled] = useState(true)
   const [pushEnabled, setPushEnabled] = useState(false)
   const [inAppEnabled, setInAppEnabled] = useState(true)
   const [compactView, setCompactView] = useState(false)
@@ -529,12 +527,11 @@ function App() {
           <div className="settings-groups">
             <section className="settings-group" aria-labelledby="delivery-heading">
               <div className="settings-group-heading">
-                <div className="settings-icon"><Mail size={19} /></div>
+                <div className="settings-icon"><Bell size={19} /></div>
                 <div><h2 id="delivery-heading">通知の受け取り方</h2><p>更新を受け取る場所を選択</p></div>
               </div>
               <div className="settings-rows">
                 <ToggleRow label="アプリ内通知" caption="Roxy Noticeを開いているときに表示" enabled={inAppEnabled} onChange={setInAppEnabled} />
-                <ToggleRow label="メール通知" caption="重要な更新をまとめて受信" enabled={emailEnabled} onChange={setEmailEnabled} />
                 <ToggleRow label="ブラウザ通知" caption="新着をこの端末へすぐに通知" enabled={pushEnabled} onChange={updatePushEnabled} />
               </div>
             </section>
@@ -718,7 +715,6 @@ function App() {
             <div><span className="eyebrow">DELIVERY</span><h2>通知の受け取り方</h2></div>
             <Settings size={19} />
           </div>
-          <ToggleRow label="メール通知" caption="重要な更新だけ" enabled={emailEnabled} onChange={setEmailEnabled} />
           <ToggleRow label="ブラウザ通知" caption="新着をこの端末に表示" enabled={pushEnabled} onChange={updatePushEnabled} />
           <p className="demo-note">X・Splatoonは1分ごと、YouTube・ASMRは5分ごとに確認します。</p>
         </section>
@@ -731,7 +727,6 @@ function App() {
               <Settings size={19} />
             </div>
             <div className="summary-list">
-              <div><Mail size={16} /><span>メール</span><strong>{emailEnabled ? 'オン' : 'オフ'}</strong></div>
               <div><Smartphone size={16} /><span>プッシュ</span><strong>{pushEnabled ? 'オン' : 'オフ'}</strong></div>
               <div><Youtube size={16} /><span>YouTube</span><strong>{youtubeChannels.length}件</strong></div>
               <div><AtSign size={16} /><span>X</span><strong>{xUsers.length}件</strong></div>
