@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export type SplatoonStageItem = {
   id: string
@@ -113,26 +113,7 @@ async function loadCurrentStages(): Promise<SplatoonApiResponse> {
   return { fetchedAt: new Date().toISOString(), items }
 }
 
-const READ_STORAGE_KEY = 'roxy-notice:splatoon-read-items'
-const NOTIFIED_STORAGE_KEY = 'roxy-notice:splatoon-notified-items'
 const TIME_FORMATTER = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' })
-
-function loadStringArray(key: string) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) ?? '[]')
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-  } catch {
-    return []
-  }
-}
-
-export function loadReadSplatoonItems() {
-  return loadStringArray(READ_STORAGE_KEY)
-}
-
-export function saveReadSplatoonItems(ids: string[]) {
-  localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(ids.slice(-100)))
-}
 
 export function getSplatoonReadId(items: SplatoonStageItem[]) {
   return `splatoon:rotation:${items.map((item) => item.id).join(',')}`
@@ -143,17 +124,12 @@ export function formatSplatoonEnd(value: string) {
   return Number.isNaN(date.getTime()) ? '終了時刻不明' : `${TIME_FORMATTER.format(date)}まで`
 }
 
-export function useSplatoonStages(pushEnabled: boolean) {
+export function useSplatoonStages() {
   const [items, setItems] = useState<SplatoonStageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshVersion, setRefreshVersion] = useState(0)
-  const seenIds = useRef<Set<string> | null>(null)
-  const notifiedIds = useRef(new Set(loadStringArray(NOTIFIED_STORAGE_KEY)))
-  const pushEnabledRef = useRef(pushEnabled)
-
-  useEffect(() => { pushEnabledRef.current = pushEnabled }, [pushEnabled])
   const refresh = useCallback(() => setRefreshVersion((value) => value + 1), [])
 
   useEffect(() => {
@@ -164,18 +140,6 @@ export function useSplatoonStages(pushEnabled: boolean) {
         const data = await loadCurrentStages()
         if (cancelled) return
 
-        const freshItems = seenIds.current ? data.items.filter((item) => !seenIds.current?.has(item.id) && !notifiedIds.current.has(item.id)) : []
-        if (pushEnabledRef.current && 'Notification' in window && window.Notification.permission === 'granted') {
-          if (freshItems.length) new window.Notification('ステージが切り替わりました', {
-            body: freshItems.map((item) => `${item.mode}: ${item.stages.map((stage) => stage.name).join(' / ')}`).join('\n'),
-            icon: freshItems[0]?.stages[0]?.imageUrl ?? undefined,
-            tag: 'splatoon-stage-rotation',
-          })
-          freshItems.forEach((item) => notifiedIds.current.add(item.id))
-          if (freshItems.length) localStorage.setItem(NOTIFIED_STORAGE_KEY, JSON.stringify([...notifiedIds.current].slice(-100)))
-        }
-
-        seenIds.current = new Set(data.items.map((item) => item.id))
         setItems(data.items)
         setError('')
         setLastUpdated(new Date(data.fetchedAt))

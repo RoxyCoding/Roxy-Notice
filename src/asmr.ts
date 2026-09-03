@@ -27,6 +27,7 @@ type AsmrApiResponse = {
 
 const READ_STORAGE_KEY = 'roxy-notice:asmr-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:asmr-notified-items'
+const VOICE_FILTER_STORAGE_KEY = 'roxy-notice:asmr-voice-filters'
 const TIME_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
   year: 'numeric',
@@ -53,6 +54,22 @@ export function saveReadAsmrItems(ids: string[]) {
   localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(ids.slice(-300)))
 }
 
+export function loadAsmrVoiceFilters() {
+  return loadStringArray(VOICE_FILTER_STORAGE_KEY)
+}
+
+export function saveAsmrVoiceFilters(voices: string[]) {
+  localStorage.setItem(VOICE_FILTER_STORAGE_KEY, JSON.stringify(voices))
+}
+
+function matchesVoiceFilter(item: AsmrNotificationItem, voiceFilters: string[]) {
+  const filters = voiceFilters.map((voice) => voice.trim().toLocaleLowerCase('ja')).filter(Boolean)
+  return filters.length > 0 && item.voice.some((voice) => {
+    const normalizedVoice = voice.trim().toLocaleLowerCase('ja')
+    return filters.some((filter) => normalizedVoice.includes(filter))
+  })
+}
+
 export function formatAsmrTime(value: string | null) {
   if (!value) return '日時不明'
   const date = new Date(value)
@@ -64,7 +81,7 @@ export function isRecentAsmrItem(item: AsmrNotificationItem) {
   return Number.isFinite(publishedAt) && Date.now() - publishedAt <= 24 * 60 * 60 * 1000
 }
 
-export function useAsmrNotifications(pushEnabled: boolean) {
+export function useAsmrNotifications(pushEnabled: boolean, voiceFilters: string[]) {
   const [items, setItems] = useState<AsmrNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -96,7 +113,7 @@ export function useAsmrNotifications(pushEnabled: boolean) {
         if (!data.notifications.length && data.warnings.length === data.sources.length) throw new Error(data.warnings[0] || 'ASMR作品を取得できませんでした。')
         if (cancelled) return
 
-        const freshItems = seenIds.current ? data.notifications.filter((item) => !seenIds.current?.has(item.id) && !notifiedIds.current.has(item.id)) : []
+        const freshItems = seenIds.current ? data.notifications.filter((item) => !seenIds.current?.has(item.id) && !notifiedIds.current.has(item.id) && matchesVoiceFilter(item, voiceFilters)) : []
         if (pushEnabledRef.current && 'Notification' in window && window.Notification.permission === 'granted') {
           freshItems.forEach((item) => new window.Notification('新しいASMR作品', { body: `${item.author} — ${item.title}`, icon: item.thumbnailUrl ?? undefined, tag: item.id }))
           freshItems.forEach((item) => notifiedIds.current.add(item.id))
@@ -121,7 +138,7 @@ export function useAsmrNotifications(pushEnabled: boolean) {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [refreshVersion])
+  }, [refreshVersion, voiceFilters])
 
   return { items, loading, error, warnings, lastUpdated, refresh }
 }

@@ -25,7 +25,6 @@ type YouTubeApiResponse = {
 
 const CHANNEL_STORAGE_KEY = 'roxy-notice:youtube-channels'
 const API_KEY_STORAGE_KEY = 'roxy-notice:youtube-api-key'
-const EXCLUDED_WORD_STORAGE_KEY = 'roxy-notice:youtube-excluded-words'
 const READ_STORAGE_KEY = 'roxy-notice:youtube-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:youtube-notified-items'
 const LIVE_SCHEDULE_STORAGE_KEY = 'roxy-notice:youtube-live-schedules'
@@ -153,14 +152,6 @@ export function saveYouTubeChannels(channels: string[]) {
   localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(channels))
 }
 
-export function loadYouTubeExcludedWords() {
-  return loadStringArray(EXCLUDED_WORD_STORAGE_KEY)
-}
-
-export function saveYouTubeExcludedWords(words: string[]) {
-  localStorage.setItem(EXCLUDED_WORD_STORAGE_KEY, JSON.stringify(words))
-}
-
 export function loadReadYouTubeItems() {
   return loadStringArray(READ_STORAGE_KEY)
 }
@@ -182,15 +173,6 @@ export function isRecentYouTubeItem(item: YouTubeNotificationItem) {
   return days !== undefined && Number(days) <= 1
 }
 
-export function isExcludedLiveItem(item: YouTubeNotificationItem, words: string[]) {
-  if (item.kind !== 'live') return false
-  const title = item.title.toLocaleLowerCase('ja')
-  return words.some((word) => {
-    const normalized = word.trim().toLocaleLowerCase('ja')
-    return normalized.length > 0 && title.includes(normalized)
-  })
-}
-
 export function getYouTubeReadId(item: YouTubeNotificationItem) {
   return item.kind === 'live' && item.publishedText ? `${item.id}:${item.publishedText}` : item.id
 }
@@ -199,7 +181,7 @@ export function hasLiveScheduleChanged(item: YouTubeNotificationItem, previousTi
   return item.kind === 'live' && item.isUpcoming && previousTime !== undefined && previousTime !== (item.publishedText ?? '')
 }
 
-export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, excludedWords: string[], apiKey: string) {
+export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string) {
   const [items, setItems] = useState<YouTubeNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -260,20 +242,19 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
         if (!data.channels.length && data.warnings.length) throw new Error(data.warnings[0])
         if (cancelled || activeChannelKey.current !== channelKey) return
 
-        const eligibleItems = data.notifications.filter((item) => !isExcludedLiveItem(item, excludedWords))
         const changedScheduleIds = new Set(
-          eligibleItems
+          data.notifications
             .filter((item) => hasLiveScheduleChanged(item, liveSchedules.current.get(item.id)))
             .map((item) => item.id),
         )
         const freshItems = seenIds.current
-          ? eligibleItems.filter((item) => !seenIds.current?.has(item.id))
+          ? data.notifications.filter((item) => !seenIds.current?.has(item.id))
           : []
-        const existingLiveItems = eligibleItems.filter(
+        const existingLiveItems = data.notifications.filter(
           (item) => item.kind === 'live' && !notifiedIds.current.has(item.id),
         )
         const notificationItems = [...new Map(
-          [...freshItems, ...existingLiveItems, ...eligibleItems.filter((item) => changedScheduleIds.has(item.id))]
+          [...freshItems, ...existingLiveItems, ...data.notifications.filter((item) => changedScheduleIds.has(item.id))]
             .map((item) => [item.id, item]),
         ).values()]
 
@@ -333,7 +314,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [apiKey, channels, excludedWords, refreshVersion])
+  }, [apiKey, channels, refreshVersion])
 
-  return { items: items.filter((item) => !isExcludedLiveItem(item, excludedWords)), loading, error, warnings, lastUpdated, refresh }
+  return { items, loading, error, warnings, lastUpdated, refresh }
 }

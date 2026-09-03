@@ -31,11 +31,9 @@ import {
   loadReadYouTubeItems,
   loadYouTubeApiKey,
   loadYouTubeChannels,
-  loadYouTubeExcludedWords,
   saveReadYouTubeItems,
   saveYouTubeApiKey,
   saveYouTubeChannels,
-  saveYouTubeExcludedWords,
   useYouTubeNotifications,
 } from './youtube'
 import {
@@ -51,15 +49,15 @@ import {
 import {
   formatAsmrTime,
   isRecentAsmrItem,
+  loadAsmrVoiceFilters,
   loadReadAsmrItems,
+  saveAsmrVoiceFilters,
   saveReadAsmrItems,
   useAsmrNotifications,
 } from './asmr'
 import {
   formatSplatoonEnd,
   getSplatoonReadId,
-  loadReadSplatoonItems,
-  saveReadSplatoonItems,
   type SplatoonStageItem,
   useSplatoonStages,
 } from './splatoon'
@@ -109,7 +107,6 @@ function App() {
   const [notices, setNotices] = useState(initialNotices)
   const [filter, setFilter] = useState<NoticeCategory>('すべて')
   const [query, setQuery] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
@@ -123,24 +120,22 @@ function App() {
   const [youtubeChannels, setYoutubeChannels] = useState(loadYouTubeChannels)
   const [youtubeApiKey, setYouTubeApiKey] = useState(loadYouTubeApiKey)
   const [youtubeChannelInput, setYoutubeChannelInput] = useState('')
-  const [youtubeExcludedWords, setYouTubeExcludedWords] = useState(loadYouTubeExcludedWords)
-  const [youtubeExcludedWordInput, setYouTubeExcludedWordInput] = useState('')
   const [readYouTubeItems, setReadYouTubeItems] = useState(() => new Set(loadReadYouTubeItems()))
   const [readAsmrItems, setReadAsmrItems] = useState(() => new Set(loadReadAsmrItems()))
-  const [readSplatoonItems, setReadSplatoonItems] = useState(() => new Set(loadReadSplatoonItems()))
-  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeExcludedWords, youtubeApiKey)
+  const [asmrVoiceFilters, setAsmrVoiceFilters] = useState(loadAsmrVoiceFilters)
+  const [asmrVoiceInput, setAsmrVoiceInput] = useState('')
+  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeApiKey)
   const xFeed = useXNotifications(xUsers, pushEnabled)
-  const asmrFeed = useAsmrNotifications(pushEnabled)
-  const splatoonFeed = useSplatoonStages(pushEnabled)
+  const asmrFeed = useAsmrNotifications(pushEnabled, asmrVoiceFilters)
+  const splatoonFeed = useSplatoonStages()
 
   useEffect(() => saveXUsers(xUsers), [xUsers])
   useEffect(() => saveReadXItems([...readXItems]), [readXItems])
   useEffect(() => saveYouTubeChannels(youtubeChannels), [youtubeChannels])
   useEffect(() => saveYouTubeApiKey(youtubeApiKey), [youtubeApiKey])
-  useEffect(() => saveYouTubeExcludedWords(youtubeExcludedWords), [youtubeExcludedWords])
   useEffect(() => saveReadYouTubeItems([...readYouTubeItems]), [readYouTubeItems])
   useEffect(() => saveReadAsmrItems([...readAsmrItems]), [readAsmrItems])
-  useEffect(() => saveReadSplatoonItems([...readSplatoonItems]), [readSplatoonItems])
+  useEffect(() => saveAsmrVoiceFilters(asmrVoiceFilters), [asmrVoiceFilters])
 
   const youtubeNotices = useMemo<Notice[]>(() => youtubeFeed.items.map((item) => ({
     id: getYouTubeReadId(item),
@@ -207,12 +202,12 @@ function App() {
     time: formatSplatoonEnd(splatoonFeed.items[0].endTime),
     title: '現在のステージ',
     body: '',
-    unread: !readSplatoonItems.has(getSplatoonReadId(splatoonFeed.items)),
+    unread: false,
     url: 'https://splatoon3.ink/',
     urlLabel: 'splatoon3.inkで見る',
     avatarUrl: splatoonIcon,
     splatoonDetails: { rotations: splatoonFeed.items },
-  }] : [], [readSplatoonItems, splatoonFeed.items])
+  }] : [], [splatoonFeed.items])
 
   const allNotices = useMemo(() => [...youtubeNotices, ...xNotices, ...asmrNotices, ...splatoonNotices, ...notices], [asmrNotices, notices, splatoonNotices, xNotices, youtubeNotices])
   const nextYouTubeLive = youtubeFeed.items.find((item) => item.kind === 'live')
@@ -262,15 +257,7 @@ function App() {
       })
       return
     }
-    if (id.startsWith('splatoon:')) {
-      setReadSplatoonItems((current) => {
-        const next = new Set(current)
-        if (next.has(id)) next.delete(id)
-        else next.add(id)
-        return next
-      })
-      return
-    }
+    if (id.startsWith('splatoon:')) return
     setNotices((current) => current.map((notice) => notice.id === id ? { ...notice, unread: !notice.unread } : notice))
   }
 
@@ -279,7 +266,6 @@ function App() {
     setReadYouTubeItems((current) => new Set([...current, ...youtubeFeed.items.map(getYouTubeReadId)]))
     setReadXItems((current) => new Set([...current, ...xFeed.items.map((item) => item.id)]))
     setReadAsmrItems((current) => new Set([...current, ...asmrFeed.items.map((item) => item.id)]))
-    if (splatoonFeed.items.length) setReadSplatoonItems((current) => new Set([...current, getSplatoonReadId(splatoonFeed.items)]))
     showToast('すべて既読にしました')
   }
 
@@ -313,16 +299,16 @@ function App() {
     showToast('Xユーザーを追加しました')
   }
 
-  const addYouTubeExcludedWord = () => {
-    const value = youtubeExcludedWordInput.trim()
+  const addAsmrVoiceFilter = () => {
+    const value = asmrVoiceInput.trim()
     if (!value) return
-    if (youtubeExcludedWords.some((word) => word.toLocaleLowerCase('ja') === value.toLocaleLowerCase('ja'))) {
-      showToast('この除外ワードは追加済みです')
+    if (asmrVoiceFilters.some((voice) => voice.toLocaleLowerCase('ja') === value.toLocaleLowerCase('ja'))) {
+      showToast('この声優は追加済みです')
       return
     }
-    setYouTubeExcludedWords((current) => [...current, value])
-    setYouTubeExcludedWordInput('')
-    showToast('除外ワードを追加しました')
+    setAsmrVoiceFilters((current) => [...current, value])
+    setAsmrVoiceInput('')
+    showToast('通知する声優を追加しました')
   }
 
   const updatePushEnabled = async (enabled: boolean) => {
@@ -371,9 +357,9 @@ function App() {
           ))}
         </nav>
 
-        <button className="new-rule-button" onClick={() => setModalOpen(true)}>
-          <Plus size={19} />
-          <span>通知ルールを作成</span>
+        <button className="new-rule-button" onClick={() => setActivePage('settings')}>
+          <Settings size={19} />
+          <span>通知設定を開く</span>
         </button>
 
       </aside>
@@ -474,9 +460,11 @@ function App() {
               <div className="notice-content">
                 <div className="notice-meta">
                   <div><strong>{notice.source}</strong><span className="kind-label">{notice.category}</span><span>· {notice.time}</span></div>
-                  <button className="icon-button small" aria-label={notice.unread ? '既読にする' : '未読に戻す'} onClick={() => toggleRead(notice.id)}>
-                    {notice.unread ? <span className="unread-dot" /> : <Check size={17} />}
-                  </button>
+                  {notice.category !== 'Splatoon' && (
+                    <button className="icon-button small" aria-label={notice.unread ? '既読にする' : '未読に戻す'} onClick={() => toggleRead(notice.id)}>
+                      {notice.unread ? <span className="unread-dot" /> : <Check size={17} />}
+                    </button>
+                  )}
                 </div>
                 {notice.category === 'X' ? <XPostText text={notice.title} /> : <h2>{notice.title}</h2>}
                 {notice.asmrDetails ? <AsmrWorkDetails details={notice.asmrDetails} /> : notice.body && <p>{notice.body}</p>}
@@ -521,7 +509,7 @@ function App() {
           <div className="settings-intro">
             <span className="eyebrow">PREFERENCES</span>
             <h2>通知を、ちょうどいい量に。</h2>
-            <p>通知方法はいつでも変更できます。登録したYouTubeチャンネルとXユーザーは、このブラウザに保存されます。</p>
+            <p>XとYouTubeは新着をすべて通知し、ASMRは指定した声優だけ通知します。Splatoonは一覧表示のみです。</p>
           </div>
 
           <div className="settings-groups">
@@ -576,31 +564,39 @@ function App() {
                 ) : <p className="channel-help">登録するとYouTubeタブに実際のライブ配信枠と投稿が表示されます。</p>}
                 {youtubeFeed.warnings.length > 0 && <p className="channel-warning">{youtubeFeed.warnings[0]}</p>}
                 <p className="unofficial-note">APIキーはこのブラウザだけに保存されます。Google CloudでHTTPリファラーをこのPages URLに制限してください。コミュニティ投稿は公式APIの対象外です。</p>
-                <div className="exclude-word-settings">
-                  <strong>ライブ予定の除外ワード</strong>
-                  <p>タイトルに含まれるライブ予定を表示・通知しません。</p>
-                  <div className="channel-input-row">
-                    <input
-                      value={youtubeExcludedWordInput}
-                      onChange={(event) => setYouTubeExcludedWordInput(event.target.value)}
-                      onKeyDown={(event) => event.key === 'Enter' && addYouTubeExcludedWord()}
-                      placeholder="例：メンバー限定"
-                      aria-label="ライブ予定の除外ワード"
-                    />
-                    <button onClick={addYouTubeExcludedWord} disabled={!youtubeExcludedWordInput.trim()}>追加</button>
-                  </div>
-                  {youtubeExcludedWords.length > 0 && (
-                    <div className="channel-list">
-                      {youtubeExcludedWords.map((word) => (
-                        <div className="channel-row" key={word}>
-                          <Filter size={16} />
-                          <span>{word}</span>
-                          <button onClick={() => setYouTubeExcludedWords((current) => current.filter((value) => value !== word))} aria-label={`除外ワード「${word}」を削除`}><Trash2 size={15} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <p className="unofficial-note">登録チャンネルで取得できた新着動画・ライブは、種類を問わずすべて通知します。</p>
+              </div>
+            </section>
+
+            <section className="settings-group" aria-labelledby="asmr-voice-heading">
+              <div className="settings-group-heading">
+                <div className="settings-icon"><Headphones size={19} /></div>
+                <div><h2 id="asmr-voice-heading">ASMR声優</h2><p>指定した声優の新着作品だけ通知</p></div>
+                {asmrFeed.loading && <LoaderCircle className="spin" size={18} />}
+              </div>
+              <div className="youtube-channel-settings">
+                <div className="channel-input-row">
+                  <input
+                    value={asmrVoiceInput}
+                    onChange={(event) => setAsmrVoiceInput(event.target.value)}
+                    onKeyDown={(event) => event.key === 'Enter' && addAsmrVoiceFilter()}
+                    placeholder="例：秋野かえで"
+                    aria-label="通知するASMR声優"
+                  />
+                  <button onClick={addAsmrVoiceFilter} disabled={!asmrVoiceInput.trim()}>追加</button>
                 </div>
+                {asmrVoiceFilters.length > 0 ? (
+                  <div className="channel-list">
+                    {asmrVoiceFilters.map((voice) => (
+                      <div className="channel-row" key={voice}>
+                        <Headphones size={16} />
+                        <span>{voice}</span>
+                        <button onClick={() => setAsmrVoiceFilters((current) => current.filter((value) => value !== voice))} aria-label={`${voice}を削除`}><Trash2 size={15} /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="channel-help">声優を追加するまでASMRのブラウザ通知は届きません。</p>}
+                <p className="unofficial-note">声優名の一部でも一致します。作品一覧にはすべての作品を表示します。</p>
               </div>
             </section>
 
@@ -636,7 +632,7 @@ function App() {
                   </div>
                 ) : <p className="channel-help">登録するとXタブに実際の投稿が表示されます。</p>}
                 {(xFeed.error || xFeed.warnings[0]) && <p className="channel-warning">{xFeed.error || xFeed.warnings[0]}</p>}
-                <p className="unofficial-note">非公式APIを使用するため、X側の変更により一時的に取得できない場合があります。</p>
+                <p className="unofficial-note">返信・リポストを含む、取得できた新着投稿をすべて通知します。非公式APIのため、X側の変更により一時的に取得できない場合があります。</p>
               </div>
             </section>
 
@@ -645,13 +641,13 @@ function App() {
                 <div className="settings-icon"><RefreshCw size={19} /></div>
                 <div><h2 id="static-edition-heading">サーバー不要版</h2><p>GitHub Pagesとブラウザだけで更新</p></div>
               </div>
-              <p className="unofficial-note">YouTubeは利用者自身のData APIキー、Xは公開タイムラインAPIをブラウザから使用します。Splatoonは1分ごとに直接取得し、ASMRはGitHub Actionsで更新します。</p>
+              <p className="unofficial-note">YouTubeは利用者自身のData APIキー、Xは公開タイムラインAPIをブラウザから使用します。Splatoonは通知せず1分ごとに表示を更新し、ASMRはGitHub Actionsで作品情報を更新します。</p>
             </section>
 
             <section className="settings-group" aria-labelledby="category-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><Bell size={19} /></div>
-                <div><h2 id="category-heading">通知するカテゴリー</h2><p>ホームに表示する通知を選択</p></div>
+                <div><h2 id="category-heading">ホームに表示するカテゴリー</h2><p>通知一覧に表示する種類を選択</p></div>
               </div>
               <div className="category-settings">
                 {filters.slice(1).map((item) => {
@@ -683,8 +679,7 @@ function App() {
           </div>
 
           <div className="settings-footer-actions">
-            <button onClick={() => showToast('デモのため初期化は行われません')}>初期設定に戻す</button>
-            <span>変更内容はこのデモ画面内でのみ反映されます。</span>
+            <span>チャンネル、Xユーザー、ASMR声優の設定は、このブラウザに自動保存されます。</span>
           </div>
         </main>
       )}
@@ -716,10 +711,10 @@ function App() {
             <Settings size={19} />
           </div>
           <ToggleRow label="ブラウザ通知" caption="新着をこの端末に表示" enabled={pushEnabled} onChange={updatePushEnabled} />
-          <p className="demo-note">X・Splatoonは1分ごと、YouTube・ASMRは5分ごとに確認します。</p>
+          <p className="demo-note">X投稿は1分ごと、YouTube・ASMRは5分ごとに確認します。Splatoonは表示だけを1分ごとに更新します。</p>
         </section>
 
-        <footer className="rail-footer">X・Splatoonは1分ごと、YouTube・ASMRは5分ごとに確認します。</footer>
+        <footer className="rail-footer">X投稿は1分ごと、YouTube・ASMRは5分ごとに確認。Splatoonは表示のみ更新します。</footer>
         </> : <>
           <section className="rail-section settings-summary-card">
             <div className="section-heading">
@@ -730,30 +725,15 @@ function App() {
               <div><Smartphone size={16} /><span>プッシュ</span><strong>{pushEnabled ? 'オン' : 'オフ'}</strong></div>
               <div><Youtube size={16} /><span>YouTube</span><strong>{youtubeChannels.length}件</strong></div>
               <div><AtSign size={16} /><span>X</span><strong>{xUsers.length}件</strong></div>
-              <div><Headphones size={16} /><span>ASMR</span><strong>3サイト</strong></div>
+              <div><Headphones size={16} /><span>ASMR声優</span><strong>{asmrVoiceFilters.length}名</strong></div>
             </div>
           </section>
 
-          <footer className="rail-footer">YouTubeチャンネルとXユーザーの設定は、このブラウザに保存されます。</footer>
+          <footer className="rail-footer">YouTubeチャンネル、Xユーザー、ASMR声優の設定は、このブラウザに保存されます。</footer>
         </>}
       </aside>
 
-      {activePage === 'home' && <button className="mobile-fab" aria-label="通知ルールを作成" onClick={() => setModalOpen(true)}><Plus size={24} /></button>}
-
-      {modalOpen && (
-        <div className="modal-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setModalOpen(false)}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-            <div className="modal-header">
-              <div><span className="eyebrow">NEW RULE</span><h2 id="modal-title">通知ルールを作成</h2></div>
-              <button className="icon-button" onClick={() => setModalOpen(false)} aria-label="閉じる"><X size={20} /></button>
-            </div>
-            <label>通知したい名前・キーワード<input type="text" placeholder="例：Roxy Studio" autoFocus /></label>
-            <label>通知の種類<select defaultValue="すべての更新"><option>すべての更新</option><option>配信予定</option><option>記事の更新</option><option>重要なお知らせ</option></select></label>
-            <div className="modal-note"><Bell size={18} /><p>これは画面操作を確認するためのデモです。実際の監視や通知送信は行われません。</p></div>
-            <div className="modal-actions"><button className="cancel-button" onClick={() => setModalOpen(false)}>キャンセル</button><button className="primary-button" onClick={() => { setModalOpen(false); showToast('デモの通知ルールを作成しました') }}>作成する</button></div>
-          </section>
-        </div>
-      )}
+      {activePage === 'home' && <button className="mobile-fab" aria-label="通知設定を開く" onClick={() => setActivePage('settings')}><Plus size={24} /></button>}
 
       <div className={`toast ${toast ? 'show' : ''}`} role="status"><Check size={17} />{toast}</div>
     </div>

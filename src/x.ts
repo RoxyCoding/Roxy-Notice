@@ -50,8 +50,7 @@ async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
         avatarUrl: profile?.avatar ?? null,
       })
       notifications.push(...timeline.tweets
-        .filter((tweet) => tweet.id && !tweet.isRetweet)
-        .slice(0, 12)
+        .filter((tweet) => tweet.id)
         .map((tweet) => ({
           id: `x:${tweet.id}`,
           userHandle: profile?.handle ?? handle,
