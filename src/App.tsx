@@ -447,7 +447,7 @@ function App() {
 
         <div className="filter-bar" role="tablist" aria-label="通知の種類">
           {filters.map((item) => (
-            <button key={item} className={filter === item ? 'active' : ''} onClick={() => setFilter(item)} role="tab" aria-selected={filter === item}>
+            <button key={item} className={filter === item ? 'active' : ''} onClick={() => { setFilter(item); window.scrollTo(0, 0) }} role="tab" aria-selected={filter === item}>
               {item}
             </button>
           ))}

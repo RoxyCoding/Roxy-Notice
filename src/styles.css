@@ -80,7 +80,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .icon-button.small { width: 30px; height: 30px; color: var(--graphite); }
 .menu-button, .mobile-close, .mobile-search, .mobile-fab { display: none; }
 
-.filter-bar { height: 52px; display: flex; align-items: stretch; border-bottom: 1px solid var(--hairline); overflow-x: auto; scrollbar-width: none; }
+.filter-bar { position: sticky; top: 76px; z-index: 9; height: 52px; display: flex; align-items: stretch; border-bottom: 1px solid var(--hairline); background: var(--paper); overflow-x: auto; scrollbar-width: none; }
 .filter-bar::-webkit-scrollbar { display: none; }
 .filter-bar > button { position: relative; min-width: 82px; padding: 0 14px; border: 0; background: transparent; color: var(--graphite); font-size: 14px; font-weight: 500; cursor: pointer; }
 .filter-bar > button:hover { background: var(--mist); }
@@ -317,6 +317,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .feed-header .text-button { width: 36px; height: 36px; padding: 0; justify-content: center; }
   .feed-header .text-button svg { display: block; }
   .feed-header .text-button { font-size: 0; }
+  .filter-bar { top: 68px; }
   .filter-bar > button { min-width: 72px; padding: 0 10px; font-size: 13px; }
   .notice-card { padding: 15px 12px; grid-template-columns: 38px 1fr; gap: 10px; }
   .notice-avatar { width: 38px; height: 38px; font-size: 11px; }
