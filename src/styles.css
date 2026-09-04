@@ -164,6 +164,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .youtube-sync-copy > svg:not(.spin) { color: var(--blue); }
 .youtube-sync-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .youtube-sync-copy small { flex: 0 0 auto; color: var(--fog); }
+.youtube-sync-copy small.sync-stale { color: #a33a3a; }
 .spin { animation: spin .8s linear infinite; }
 .youtube-empty svg { color: var(--blue); }
 .empty-state { min-height: 420px; padding: 80px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; color: var(--graphite); }

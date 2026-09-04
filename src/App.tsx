@@ -238,6 +238,7 @@ function App() {
   }, [allNotices, enabledCategories, filter, query])
 
   const unreadCount = allNotices.filter((notice) => notice.unread).length
+  const asmrDataStale = asmrFeed.lastUpdated !== null && Date.now() - asmrFeed.lastUpdated.getTime() > 20 * 60_000
   const feedError = filter === 'YouTube' ? youtubeFeed.error : filter === 'X' ? xFeed.error : filter === 'ASMR' ? asmrFeed.error : filter === 'Splatoon' ? splatoonFeed.error : ''
 
   const showToast = (message: string) => {
@@ -469,7 +470,7 @@ function App() {
             <div className="youtube-sync-copy">
               {asmrFeed.loading ? <LoaderCircle className="spin" size={16} /> : <Headphones size={17} />}
               <span>{asmrFeed.error || asmrFeed.warnings[0] || '5分ごとに静的データを更新'}</span>
-              {asmrFeed.lastUpdated && !asmrFeed.error && <small>{asmrFeed.lastUpdated.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' })} 更新</small>}
+              {asmrFeed.lastUpdated && !asmrFeed.error && <small className={asmrDataStale ? 'sync-stale' : ''}>{asmrFeed.lastUpdated.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit' })} 更新{asmrDataStale ? '（GitHub側の更新が遅れています）' : ''}</small>}
             </div>
             <button className="icon-button small" onClick={asmrFeed.refresh} aria-label="ASMR通知を再取得" disabled={asmrFeed.loading}><RefreshCw size={16} /></button>
           </div>
