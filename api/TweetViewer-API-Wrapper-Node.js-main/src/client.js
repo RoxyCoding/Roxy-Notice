@@ -155,7 +155,7 @@ export class TweetViewerClient {
     this.baseUrl = new URL(options.baseUrl ?? DEFAULT_BASE_URL);
     this.liveBaseUrl = new URL(options.liveBaseUrl ?? DEFAULT_LIVE_BASE_URL);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    this.fetch = options.fetch ?? globalThis.fetch;
+    this.fetch = options.fetch ?? globalThis.fetch?.bind(globalThis);
     this.headers = new Headers(options.headers);
     if (typeof this.fetch !== "function") {
       throw new TypeError("fetch implementation is required");
