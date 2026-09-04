@@ -71,7 +71,8 @@ async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
   return {
     fetchedAt: new Date().toISOString(),
     users: profiles,
-    notifications: notifications.sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)),
+    notifications: [...new Map(notifications.map((item) => [item.id, item])).values()]
+      .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)),
     warnings,
   }
 }
