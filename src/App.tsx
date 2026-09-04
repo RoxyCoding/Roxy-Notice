@@ -17,6 +17,7 @@ import {
   Menu,
   Plus,
   RefreshCw,
+  Repeat2,
   Search,
   Settings,
   Smartphone,
@@ -81,6 +82,7 @@ type Notice = {
   urlLabel?: string
   secondaryUrl?: string | null
   secondaryLabel?: string
+  repostedBy?: { name: string; handle: string }
   asmrDetails?: {
     source: string
     voice: string[]
@@ -166,6 +168,7 @@ function App() {
     url: item.url,
     thumbnailUrl: item.thumbnailUrl,
     avatarUrl: item.avatarUrl,
+    repostedBy: item.repostedByHandle ? { name: item.repostedByName ?? item.repostedByHandle, handle: item.repostedByHandle } : undefined,
   })), [readXItems, xFeed.items])
 
   const asmrNotices = useMemo<Notice[]>(() => asmrFeed.items.map((item) => ({
@@ -458,6 +461,9 @@ function App() {
                 {notice.avatarUrl ? <img src={notice.avatarUrl} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" /> : notice.initials}
               </div>
               <div className="notice-content">
+                {notice.repostedBy && (
+                  <div className="repost-attribution"><Repeat2 size={14} /><span>{notice.repostedBy.name}（@{notice.repostedBy.handle}）がリポスト</span></div>
+                )}
                 <div className="notice-meta">
                   <div><strong>{notice.source}</strong><span className="kind-label">{notice.category}</span><span>· {notice.time}</span></div>
                   {notice.category !== 'Splatoon' && (

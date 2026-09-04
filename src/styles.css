@@ -96,6 +96,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .notice-avatar { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; background: var(--avatar-color); color: white; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
 .notice-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .notice-content { min-width: 0; }
+.repost-attribution { margin: 0 0 4px; display: flex; align-items: center; gap: 6px; color: var(--graphite); font-size: 12px; font-weight: 600; }
+.repost-attribution svg { flex: 0 0 auto; }
 .notice-meta { min-height: 30px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--graphite); font-size: 12px; }
 .notice-meta > div { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
 .notice-meta strong { color: var(--ink); font-size: 14px; }

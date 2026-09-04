@@ -12,6 +12,8 @@ export type XNotificationItem = {
   createdAt: string
   thumbnailUrl: string | null
   isReply: boolean
+  repostedByHandle: string | null
+  repostedByName: string | null
 }
 
 type XApiResponse = {
@@ -49,10 +51,10 @@ async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
         displayName: profile?.displayName ?? handle,
         avatarUrl: profile?.avatar ?? null,
       })
-      notifications.push(...timeline.tweets
+      const timelineNotifications: XNotificationItem[] = timeline.tweets
         .filter((tweet) => tweet.id)
         .map((tweet) => ({
-          id: `x:${tweet.id}`,
+          id: `x:${profile?.handle ?? handle}:${tweet.id}`,
           userHandle: profile?.handle ?? handle,
           authorHandle: tweet.authorHandle ?? profile?.handle ?? handle,
           authorName: tweet.authorName ?? profile?.displayName ?? handle,
@@ -62,7 +64,15 @@ async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
           createdAt: tweet.createdAt,
           thumbnailUrl: tweet.media?.[0]?.thumb ?? tweet.media?.[0]?.video?.poster ?? tweet.media?.[0]?.url ?? null,
           isReply: Boolean(tweet.isReply),
-        })))
+          repostedByHandle: tweet.retweetedBy ?? null,
+          repostedByName: tweet.retweetedByName ?? null,
+        }))
+      const uniqueTimelineItems = new Map<string, XNotificationItem>()
+      timelineNotifications.forEach((item) => {
+        const existing = uniqueTimelineItems.get(item.id)
+        if (!existing || (!existing.repostedByHandle && item.repostedByHandle)) uniqueTimelineItems.set(item.id, item)
+      })
+      notifications.push(...uniqueTimelineItems.values())
     } catch (error) {
       warnings.push(`@${handle}: ${error instanceof Error ? error.message : '取得に失敗しました。'}`)
     }
@@ -71,8 +81,7 @@ async function fetchXNotifications(users: string[]): Promise<XApiResponse> {
   return {
     fetchedAt: new Date().toISOString(),
     users: profiles,
-    notifications: [...new Map(notifications.map((item) => [item.id, item])).values()]
-      .sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)),
+    notifications: notifications.sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)),
     warnings,
   }
 }
@@ -175,7 +184,7 @@ export function useXNotifications(users: string[], pushEnabled: boolean) {
         if (pushEnabledRef.current && 'Notification' in window && window.Notification.permission === 'granted') {
           freshItems.forEach((item) => {
             new window.Notification('新しいX投稿', {
-              body: `${item.authorName} (@${item.authorHandle})\n${item.text.slice(0, 180)}`,
+              body: `${item.repostedByHandle ? `${item.repostedByName ?? item.repostedByHandle} (@${item.repostedByHandle}) がリポスト\n` : ''}${item.authorName} (@${item.authorHandle})\n${item.text.slice(0, 180)}`,
               icon: item.avatarUrl ?? undefined,
               tag: item.id,
             })
