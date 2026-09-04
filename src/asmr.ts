@@ -28,6 +28,8 @@ type AsmrApiResponse = {
 const READ_STORAGE_KEY = 'roxy-notice:asmr-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:asmr-notified-items'
 const VOICE_FILTER_STORAGE_KEY = 'roxy-notice:asmr-voice-filters'
+const LOCK_STORAGE_KEY = 'roxy-notice:asmr-lock-hash'
+const UNLOCKED_STORAGE_KEY = 'roxy-notice:asmr-unlocked'
 const TIME_FORMATTER = new Intl.DateTimeFormat('ja-JP', {
   timeZone: 'Asia/Tokyo',
   year: 'numeric',
@@ -62,6 +64,45 @@ export function saveAsmrVoiceFilters(voices: string[]) {
   localStorage.setItem(VOICE_FILTER_STORAGE_KEY, JSON.stringify(voices))
 }
 
+export function loadAsmrLockHash() {
+  try {
+    const value = localStorage.getItem(LOCK_STORAGE_KEY)
+    return typeof value === 'string' && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function saveAsmrLockHash(hash: string) {
+  localStorage.setItem(LOCK_STORAGE_KEY, hash)
+}
+
+export function loadAsmrUnlocked() {
+  try {
+    return localStorage.getItem(UNLOCKED_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function saveAsmrUnlocked() {
+  localStorage.setItem(UNLOCKED_STORAGE_KEY, 'true')
+}
+
+export function lockAsmr() {
+  localStorage.removeItem(UNLOCKED_STORAGE_KEY)
+}
+
+export function clearAsmrLock() {
+  localStorage.removeItem(LOCK_STORAGE_KEY)
+  localStorage.removeItem(UNLOCKED_STORAGE_KEY)
+}
+
+export async function hashAsmrPassword(password: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password))
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 function matchesVoiceFilter(item: AsmrNotificationItem, voiceFilters: string[]) {
   const filters = voiceFilters.map((voice) => voice.trim().toLocaleLowerCase('ja')).filter(Boolean)
   return filters.length > 0 && item.voice.some((voice) => {
@@ -81,7 +122,7 @@ export function isRecentAsmrItem(item: AsmrNotificationItem) {
   return Number.isFinite(publishedAt) && Date.now() - publishedAt <= 24 * 60 * 60 * 1000
 }
 
-export function useAsmrNotifications(pushEnabled: boolean, voiceFilters: string[]) {
+export function useAsmrNotifications(pushEnabled: boolean, voiceFilters: string[], unlocked: boolean) {
   const [items, setItems] = useState<AsmrNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -96,6 +137,7 @@ export function useAsmrNotifications(pushEnabled: boolean, voiceFilters: string[
   const refresh = useCallback(() => setRefreshVersion((value) => value + 1), [])
 
   useEffect(() => {
+    if (!unlocked) return
     let cancelled = false
     const load = async (showLoading = false) => {
       if (showLoading) setLoading(true)
@@ -138,7 +180,7 @@ export function useAsmrNotifications(pushEnabled: boolean, voiceFilters: string[
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [refreshVersion, voiceFilters])
+  }, [refreshVersion, voiceFilters, unlocked])
 
   return { items, loading, error, warnings, lastUpdated, refresh }
 }

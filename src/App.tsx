@@ -14,6 +14,7 @@ import {
   Headphones,
   Inbox,
   LoaderCircle,
+  Lock,
   Menu,
   Plus,
   RefreshCw,
@@ -48,10 +49,17 @@ import {
   useXNotifications,
 } from './x'
 import {
+  clearAsmrLock,
   formatAsmrTime,
+  hashAsmrPassword,
   isRecentAsmrItem,
+  loadAsmrLockHash,
+  loadAsmrUnlocked,
   loadAsmrVoiceFilters,
   loadReadAsmrItems,
+  lockAsmr,
+  saveAsmrLockHash,
+  saveAsmrUnlocked,
   saveAsmrVoiceFilters,
   saveReadAsmrItems,
   useAsmrNotifications,
@@ -126,9 +134,14 @@ function App() {
   const [readAsmrItems, setReadAsmrItems] = useState(() => new Set(loadReadAsmrItems()))
   const [asmrVoiceFilters, setAsmrVoiceFilters] = useState(loadAsmrVoiceFilters)
   const [asmrVoiceInput, setAsmrVoiceInput] = useState('')
+  const [asmrLockHash, setAsmrLockHash] = useState(loadAsmrLockHash)
+  const [asmrUnlocked, setAsmrUnlocked] = useState(loadAsmrUnlocked)
+  const [asmrPasswordInput, setAsmrPasswordInput] = useState('')
+  const [asmrPasswordConfirm, setAsmrPasswordConfirm] = useState('')
+  const [asmrUnlockInput, setAsmrUnlockInput] = useState('')
   const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeApiKey)
   const xFeed = useXNotifications(xUsers, pushEnabled)
-  const asmrFeed = useAsmrNotifications(pushEnabled, asmrVoiceFilters)
+  const asmrFeed = useAsmrNotifications(pushEnabled, asmrVoiceFilters, asmrUnlocked)
   const splatoonFeed = useSplatoonStages()
 
   useEffect(() => saveXUsers(xUsers), [xUsers])
@@ -171,7 +184,7 @@ function App() {
     repostedBy: item.repostedByHandle ? { name: item.repostedByName ?? item.repostedByHandle, handle: item.repostedByHandle } : undefined,
   })), [readXItems, xFeed.items])
 
-  const asmrNotices = useMemo<Notice[]>(() => asmrFeed.items.map((item) => ({
+  const asmrNotices = useMemo<Notice[]>(() => asmrUnlocked ? asmrFeed.items.map((item) => ({
     id: item.id,
     source: item.author,
     initials: 'AS',
@@ -194,7 +207,7 @@ function App() {
       illust: item.illust,
       price: item.price,
     },
-  })), [asmrFeed.items, readAsmrItems])
+  })) : [], [asmrFeed.items, asmrUnlocked, readAsmrItems])
 
   const splatoonNotices = useMemo<Notice[]>(() => splatoonFeed.items.length ? [{
     id: getSplatoonReadId(splatoonFeed.items),
@@ -314,6 +327,52 @@ function App() {
     showToast('通知する声優を追加しました')
   }
 
+  const setAsmrPassword = async () => {
+    const value = asmrPasswordInput
+    if (value.length < 4) {
+      showToast('パスワードは4文字以上にしてください')
+      return
+    }
+    if (value !== asmrPasswordConfirm) {
+      showToast('パスワードが一致しません')
+      return
+    }
+    const hash = await hashAsmrPassword(value)
+    saveAsmrLockHash(hash)
+    setAsmrLockHash(hash)
+    setAsmrUnlocked(true)
+    saveAsmrUnlocked()
+    setAsmrPasswordInput('')
+    setAsmrPasswordConfirm('')
+    showToast('ASMRのパスワードを設定しました')
+  }
+
+  const unlockAsmr = async () => {
+    const hash = await hashAsmrPassword(asmrUnlockInput)
+    if (hash !== asmrLockHash) {
+      showToast('パスワードが違います')
+      return
+    }
+    setAsmrUnlocked(true)
+    saveAsmrUnlocked()
+    setAsmrUnlockInput('')
+    showToast('ASMRのロックを解除しました')
+  }
+
+  const relockAsmr = () => {
+    lockAsmr()
+    setAsmrUnlocked(false)
+    showToast('ASMRをロックしました')
+  }
+
+  const resetAsmrLock = () => {
+    clearAsmrLock()
+    setAsmrLockHash(null)
+    setAsmrUnlocked(false)
+    setAsmrUnlockInput('')
+    showToast('ASMRのパスワードをリセットしました')
+  }
+
   const updatePushEnabled = async (enabled: boolean) => {
     if (enabled) {
       if (!('Notification' in window)) {
@@ -405,7 +464,7 @@ function App() {
             <button className="icon-button small" onClick={youtubeFeed.refresh} aria-label="YouTube通知を再取得" disabled={youtubeFeed.loading}><RefreshCw size={16} /></button>
           </div>
         )}
-        {filter === 'ASMR' && (
+        {filter === 'ASMR' && asmrUnlocked && (
           <div className={`youtube-sync-bar ${asmrFeed.error ? 'has-error' : ''}`}>
             <div className="youtube-sync-copy">
               {asmrFeed.loading ? <LoaderCircle className="spin" size={16} /> : <Headphones size={17} />}
@@ -417,7 +476,48 @@ function App() {
         )}
 
         <section className="notice-list" aria-live="polite">
-          {filter === 'YouTube' && youtubeChannels.length === 0 ? (
+          {filter === 'ASMR' && !asmrUnlocked ? (
+            <div className="empty-state asmr-lock">
+              <Lock size={28} />
+              <h2>{asmrLockHash ? 'ASMRはロックされています' : 'ASMRをパスワードで保護'}</h2>
+              <p>{asmrLockHash ? 'パスワードを入力してロックを解除してください。' : '初回のみパスワードを設定すると、以降は表示されます。'}</p>
+              <div className="asmr-lock-form">
+                {asmrLockHash ? (
+                  <>
+                    <input
+                      type="password"
+                      value={asmrUnlockInput}
+                      onChange={(event) => setAsmrUnlockInput(event.target.value)}
+                      onKeyDown={(event) => event.key === 'Enter' && void unlockAsmr()}
+                      placeholder="パスワード"
+                      aria-label="ASMRのパスワード"
+                      autoFocus
+                    />
+                    <button onClick={() => void unlockAsmr()} disabled={!asmrUnlockInput}>ロックを解除</button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="password"
+                      value={asmrPasswordInput}
+                      onChange={(event) => setAsmrPasswordInput(event.target.value)}
+                      placeholder="新しいパスワード（4文字以上）"
+                      aria-label="ASMRの新しいパスワード"
+                      autoFocus
+                    />
+                    <input
+                      type="password"
+                      value={asmrPasswordConfirm}
+                      onChange={(event) => setAsmrPasswordConfirm(event.target.value)}
+                      placeholder="パスワードを確認"
+                      aria-label="ASMRのパスワード確認"
+                    />
+                    <button onClick={() => void setAsmrPassword()} disabled={!asmrPasswordInput || !asmrPasswordConfirm}>パスワードを設定して表示</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : filter === 'YouTube' && youtubeChannels.length === 0 ? (
             <div className="empty-state youtube-empty">
               <Youtube size={28} />
               <h2>YouTubeチャンネルを登録</h2>
@@ -603,6 +703,28 @@ function App() {
                   </div>
                 ) : <p className="channel-help">声優を追加するまでASMRのブラウザ通知は届きません。</p>}
                 <p className="unofficial-note">声優名の一部でも一致します。作品一覧にはすべての作品を表示します。</p>
+              </div>
+            </section>
+
+            <section className="settings-group" aria-labelledby="asmr-lock-heading">
+              <div className="settings-group-heading">
+                <div className="settings-icon"><Lock size={19} /></div>
+                <div><h2 id="asmr-lock-heading">ASMRロック</h2><p>初回はパスワードを設定すると表示</p></div>
+              </div>
+              <div className="youtube-channel-settings">
+                <div className="channel-list">
+                  <div className="channel-row">
+                    <Lock size={16} />
+                    <span>{asmrLockHash === null ? '未設定 — ASMRタブでパスワードを設定します' : asmrUnlocked ? '解除済み — ASMRを表示中' : 'ロック中 — パスワードが必要です'}</span>
+                  </div>
+                </div>
+                {asmrLockHash !== null && (
+                  <div className="asmr-lock-actions">
+                    {asmrUnlocked && <button onClick={relockAsmr}>ロックし直す</button>}
+                    <button onClick={resetAsmrLock}>パスワードをリセット</button>
+                  </div>
+                )}
+                <p className="unofficial-note">パスワードはSHA-256ハッシュとしてこのブラウザだけに保存されます。ロック中はASMRの新着通知も届きません。</p>
               </div>
             </section>
 
