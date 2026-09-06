@@ -231,6 +231,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .settings-rows .toggle-row:last-child { border-bottom: 0; }
 .settings-rows.single-row .toggle-row { border-bottom: 0; }
 .youtube-channel-settings { margin: 14px 0 0 50px; }
+.live-filter-mode { display: flex; gap: 8px; margin-bottom: 10px; }
+.live-filter-mode button { flex: 1; padding: 9px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-full); background: white; color: var(--graphite); font-size: 12px; font-weight: 700; cursor: pointer; }
+.live-filter-mode button:hover { background: var(--mist); }
+.live-filter-mode button.active { border-color: var(--blue); background: var(--blue); color: white; }
 .channel-input-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .channel-input-row input { width: 100%; min-width: 0; height: 42px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 10px; background: white; color: var(--ink); font-size: 13px; }
 .channel-input-row input::placeholder { color: var(--fog); }

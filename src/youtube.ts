@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+export type YouTubeLiveFilterMode = 'exclude' | 'include'
+
 export type YouTubeNotificationItem = {
   id: string
   kind: 'live' | 'post'
@@ -28,7 +30,8 @@ const API_KEY_STORAGE_KEY = 'roxy-notice:youtube-api-key'
 const READ_STORAGE_KEY = 'roxy-notice:youtube-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:youtube-notified-items'
 const LIVE_SCHEDULE_STORAGE_KEY = 'roxy-notice:youtube-live-schedules'
-const LIVE_EXCLUDE_STORAGE_KEY = 'roxy-notice:youtube-live-excludes'
+const LIVE_FILTER_STORAGE_KEY = 'roxy-notice:youtube-live-filter-words'
+const LIVE_FILTER_MODE_STORAGE_KEY = 'roxy-notice:youtube-live-filter-mode'
 
 export function loadYouTubeApiKey() {
   return localStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
@@ -153,21 +156,29 @@ export function saveYouTubeChannels(channels: string[]) {
   localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(channels))
 }
 
-export function loadYouTubeLiveExcludes() {
-  return loadStringArray(LIVE_EXCLUDE_STORAGE_KEY)
+export function loadYouTubeLiveFilterWords() {
+  return loadStringArray(LIVE_FILTER_STORAGE_KEY)
 }
 
-export function saveYouTubeLiveExcludes(words: string[]) {
-  localStorage.setItem(LIVE_EXCLUDE_STORAGE_KEY, JSON.stringify(words))
+export function saveYouTubeLiveFilterWords(words: string[]) {
+  localStorage.setItem(LIVE_FILTER_STORAGE_KEY, JSON.stringify(words))
 }
 
-export function isExcludedYouTubeLive(item: YouTubeNotificationItem, excludeWords: string[]) {
+export function loadYouTubeLiveFilterMode(): YouTubeLiveFilterMode {
+  return localStorage.getItem(LIVE_FILTER_MODE_STORAGE_KEY) === 'include' ? 'include' : 'exclude'
+}
+
+export function saveYouTubeLiveFilterMode(mode: YouTubeLiveFilterMode) {
+  localStorage.setItem(LIVE_FILTER_MODE_STORAGE_KEY, mode)
+}
+
+export function isHiddenYouTubeLive(item: YouTubeNotificationItem, filterWords: string[], mode: YouTubeLiveFilterMode) {
   if (item.kind !== 'live') return false
+  const keywords = filterWords.map((word) => word.trim().toLocaleLowerCase('ja')).filter((word) => word.length > 0)
+  if (!keywords.length) return false
   const title = item.title.toLocaleLowerCase('ja')
-  return excludeWords.some((word) => {
-    const keyword = word.trim().toLocaleLowerCase('ja')
-    return keyword.length > 0 && title.includes(keyword)
-  })
+  const matched = keywords.some((keyword) => title.includes(keyword))
+  return mode === 'include' ? !matched : matched
 }
 
 export function loadReadYouTubeItems() {
@@ -199,7 +210,7 @@ export function hasLiveScheduleChanged(item: YouTubeNotificationItem, previousTi
   return item.kind === 'live' && item.isUpcoming && previousTime !== undefined && previousTime !== (item.publishedText ?? '')
 }
 
-export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string, liveExcludeWords: string[]) {
+export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string, liveFilterWords: string[], liveFilterMode: YouTubeLiveFilterMode) {
   const [items, setItems] = useState<YouTubeNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -257,7 +268,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       if (showLoading) setLoading(true)
       try {
         const data = await fetchYouTubeNotifications(channels, apiKey)
-        data.notifications = data.notifications.filter((item) => !isExcludedYouTubeLive(item, liveExcludeWords))
+        data.notifications = data.notifications.filter((item) => !isHiddenYouTubeLive(item, liveFilterWords, liveFilterMode))
         if (!data.channels.length && data.warnings.length) throw new Error(data.warnings[0])
         if (cancelled || activeChannelKey.current !== channelKey) return
 
@@ -333,7 +344,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [apiKey, channels, liveExcludeWords, refreshVersion])
+  }, [apiKey, channels, liveFilterMode, liveFilterWords, refreshVersion])
 
   return { items, loading, error, warnings, lastUpdated, refresh }
 }

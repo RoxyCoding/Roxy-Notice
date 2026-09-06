@@ -33,11 +33,13 @@ import {
   loadReadYouTubeItems,
   loadYouTubeApiKey,
   loadYouTubeChannels,
-  loadYouTubeLiveExcludes,
+  loadYouTubeLiveFilterMode,
+  loadYouTubeLiveFilterWords,
   saveReadYouTubeItems,
   saveYouTubeApiKey,
   saveYouTubeChannels,
-  saveYouTubeLiveExcludes,
+  saveYouTubeLiveFilterMode,
+  saveYouTubeLiveFilterWords,
   useYouTubeNotifications,
 } from './youtube'
 import {
@@ -132,8 +134,9 @@ function App() {
   const [youtubeChannels, setYoutubeChannels] = useState(loadYouTubeChannels)
   const [youtubeApiKey, setYouTubeApiKey] = useState(loadYouTubeApiKey)
   const [youtubeChannelInput, setYoutubeChannelInput] = useState('')
-  const [youtubeLiveExcludes, setYoutubeLiveExcludes] = useState(loadYouTubeLiveExcludes)
-  const [youtubeLiveExcludeInput, setYoutubeLiveExcludeInput] = useState('')
+  const [youtubeLiveFilterWords, setYoutubeLiveFilterWords] = useState(loadYouTubeLiveFilterWords)
+  const [youtubeLiveFilterMode, setYoutubeLiveFilterMode] = useState(loadYouTubeLiveFilterMode)
+  const [youtubeLiveFilterInput, setYoutubeLiveFilterInput] = useState('')
   const [readYouTubeItems, setReadYouTubeItems] = useState(() => new Set(loadReadYouTubeItems()))
   const [readAsmrItems, setReadAsmrItems] = useState(() => new Set(loadReadAsmrItems()))
   const [asmrVoiceFilters, setAsmrVoiceFilters] = useState(loadAsmrVoiceFilters)
@@ -143,7 +146,7 @@ function App() {
   const [asmrPasswordInput, setAsmrPasswordInput] = useState('')
   const [asmrPasswordConfirm, setAsmrPasswordConfirm] = useState('')
   const [asmrUnlockInput, setAsmrUnlockInput] = useState('')
-  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeApiKey, youtubeLiveExcludes)
+  const youtubeFeed = useYouTubeNotifications(youtubeChannels, pushEnabled, youtubeApiKey, youtubeLiveFilterWords, youtubeLiveFilterMode)
   const xFeed = useXNotifications(xUsers, pushEnabled)
   const asmrFeed = useAsmrNotifications(pushEnabled, asmrVoiceFilters, asmrUnlocked)
   const splatoonFeed = useSplatoonStages()
@@ -152,7 +155,8 @@ function App() {
   useEffect(() => saveReadXItems([...readXItems]), [readXItems])
   useEffect(() => saveYouTubeChannels(youtubeChannels), [youtubeChannels])
   useEffect(() => saveYouTubeApiKey(youtubeApiKey), [youtubeApiKey])
-  useEffect(() => saveYouTubeLiveExcludes(youtubeLiveExcludes), [youtubeLiveExcludes])
+  useEffect(() => saveYouTubeLiveFilterWords(youtubeLiveFilterWords), [youtubeLiveFilterWords])
+  useEffect(() => saveYouTubeLiveFilterMode(youtubeLiveFilterMode), [youtubeLiveFilterMode])
   useEffect(() => saveReadYouTubeItems([...readYouTubeItems]), [readYouTubeItems])
   useEffect(() => saveReadAsmrItems([...readAsmrItems]), [readAsmrItems])
   useEffect(() => saveAsmrVoiceFilters(asmrVoiceFilters), [asmrVoiceFilters])
@@ -306,16 +310,16 @@ function App() {
     showToast('YouTubeチャンネルを追加しました')
   }
 
-  const addYouTubeLiveExclude = () => {
-    const value = youtubeLiveExcludeInput.trim()
+  const addYouTubeLiveFilterWord = () => {
+    const value = youtubeLiveFilterInput.trim()
     if (!value) return
-    if (youtubeLiveExcludes.some((word) => word.toLocaleLowerCase('ja') === value.toLocaleLowerCase('ja'))) {
-      showToast('この除外ワードは追加済みです')
+    if (youtubeLiveFilterWords.some((word) => word.toLocaleLowerCase('ja') === value.toLocaleLowerCase('ja'))) {
+      showToast('このワードは追加済みです')
       return
     }
-    setYoutubeLiveExcludes((current) => [...current, value])
-    setYoutubeLiveExcludeInput('')
-    showToast('ライブ枠の除外ワードを追加しました')
+    setYoutubeLiveFilterWords((current) => [...current, value])
+    setYoutubeLiveFilterInput('')
+    showToast('ライブ枠のワードを追加しました')
   }
 
   const addXUser = () => {
@@ -692,34 +696,38 @@ function App() {
               </div>
             </section>
 
-            <section className="settings-group" aria-labelledby="youtube-exclude-heading">
+            <section className="settings-group" aria-labelledby="youtube-live-filter-heading">
               <div className="settings-group-heading">
                 <div className="settings-icon"><Filter size={19} /></div>
-                <div><h2 id="youtube-exclude-heading">ライブ枠の除外ワード</h2><p>タイトルに含む配信枠は表示・通知しない</p></div>
+                <div><h2 id="youtube-live-filter-heading">ライブ枠のワード絞り込み</h2><p>タイトルのワードで配信枠を選別</p></div>
               </div>
               <div className="youtube-channel-settings">
+                <div className="live-filter-mode" role="group" aria-label="ライブ枠の絞り込み方法">
+                  <button className={youtubeLiveFilterMode === 'exclude' ? 'active' : ''} aria-pressed={youtubeLiveFilterMode === 'exclude'} onClick={() => setYoutubeLiveFilterMode('exclude')}>含むものを除外</button>
+                  <button className={youtubeLiveFilterMode === 'include' ? 'active' : ''} aria-pressed={youtubeLiveFilterMode === 'include'} onClick={() => setYoutubeLiveFilterMode('include')}>含むものだけ表示</button>
+                </div>
                 <div className="channel-input-row">
                   <input
-                    value={youtubeLiveExcludeInput}
-                    onChange={(event) => setYoutubeLiveExcludeInput(event.target.value)}
-                    onKeyDown={(event) => event.key === 'Enter' && addYouTubeLiveExclude()}
+                    value={youtubeLiveFilterInput}
+                    onChange={(event) => setYoutubeLiveFilterInput(event.target.value)}
+                    onKeyDown={(event) => event.key === 'Enter' && addYouTubeLiveFilterWord()}
                     placeholder="例：メンバー限定"
-                    aria-label="ライブ枠の除外ワード"
+                    aria-label="ライブ枠の絞り込みワード"
                   />
-                  <button onClick={addYouTubeLiveExclude} disabled={!youtubeLiveExcludeInput.trim()}>追加</button>
+                  <button onClick={addYouTubeLiveFilterWord} disabled={!youtubeLiveFilterInput.trim()}>追加</button>
                 </div>
-                {youtubeLiveExcludes.length > 0 ? (
+                {youtubeLiveFilterWords.length > 0 ? (
                   <div className="channel-list">
-                    {youtubeLiveExcludes.map((word) => (
+                    {youtubeLiveFilterWords.map((word) => (
                       <div className="channel-row" key={word}>
                         <Filter size={16} />
                         <span>{word}</span>
-                        <button onClick={() => setYoutubeLiveExcludes((current) => current.filter((value) => value !== word))} aria-label={`${word}を削除`}><Trash2 size={15} /></button>
+                        <button onClick={() => setYoutubeLiveFilterWords((current) => current.filter((value) => value !== word))} aria-label={`${word}を削除`}><Trash2 size={15} /></button>
                       </div>
                     ))}
                   </div>
-                ) : <p className="channel-help">ワードを追加すると、そのワードを含むライブ配信枠を一覧からも通知からも除外します。</p>}
-                <p className="unofficial-note">ワードの一部一致・大文字小文字を区別せずに判定します。通常の動画投稿は除外されません。</p>
+                ) : <p className="channel-help">ワードを追加すると、{youtubeLiveFilterMode === 'exclude' ? 'そのワードを含むライブ配信枠を一覧からも通知からも除外します。' : 'そのワードを含むライブ配信枠だけを一覧と通知に表示します。'}</p>}
+                <p className="unofficial-note">ワードの一部一致・大文字小文字を区別せずに判定します。通常の動画投稿は絞り込みの対象外です。</p>
               </div>
             </section>
 
