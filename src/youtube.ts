@@ -28,6 +28,7 @@ const API_KEY_STORAGE_KEY = 'roxy-notice:youtube-api-key'
 const READ_STORAGE_KEY = 'roxy-notice:youtube-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:youtube-notified-items'
 const LIVE_SCHEDULE_STORAGE_KEY = 'roxy-notice:youtube-live-schedules'
+const LIVE_EXCLUDE_STORAGE_KEY = 'roxy-notice:youtube-live-excludes'
 
 export function loadYouTubeApiKey() {
   return localStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
@@ -152,6 +153,23 @@ export function saveYouTubeChannels(channels: string[]) {
   localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(channels))
 }
 
+export function loadYouTubeLiveExcludes() {
+  return loadStringArray(LIVE_EXCLUDE_STORAGE_KEY)
+}
+
+export function saveYouTubeLiveExcludes(words: string[]) {
+  localStorage.setItem(LIVE_EXCLUDE_STORAGE_KEY, JSON.stringify(words))
+}
+
+export function isExcludedYouTubeLive(item: YouTubeNotificationItem, excludeWords: string[]) {
+  if (item.kind !== 'live') return false
+  const title = item.title.toLocaleLowerCase('ja')
+  return excludeWords.some((word) => {
+    const keyword = word.trim().toLocaleLowerCase('ja')
+    return keyword.length > 0 && title.includes(keyword)
+  })
+}
+
 export function loadReadYouTubeItems() {
   return loadStringArray(READ_STORAGE_KEY)
 }
@@ -181,7 +199,7 @@ export function hasLiveScheduleChanged(item: YouTubeNotificationItem, previousTi
   return item.kind === 'live' && item.isUpcoming && previousTime !== undefined && previousTime !== (item.publishedText ?? '')
 }
 
-export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string) {
+export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string, liveExcludeWords: string[]) {
   const [items, setItems] = useState<YouTubeNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -239,6 +257,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       if (showLoading) setLoading(true)
       try {
         const data = await fetchYouTubeNotifications(channels, apiKey)
+        data.notifications = data.notifications.filter((item) => !isExcludedYouTubeLive(item, liveExcludeWords))
         if (!data.channels.length && data.warnings.length) throw new Error(data.warnings[0])
         if (cancelled || activeChannelKey.current !== channelKey) return
 
@@ -314,7 +333,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [apiKey, channels, refreshVersion])
+  }, [apiKey, channels, liveExcludeWords, refreshVersion])
 
   return { items, loading, error, warnings, lastUpdated, refresh }
 }
