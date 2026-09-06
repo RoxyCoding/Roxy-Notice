@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type YouTubeLiveFilterMode = 'exclude' | 'include'
 
+export type YouTubeLiveFilter = { mode: YouTubeLiveFilterMode; words: string[] }
+
+export type YouTubeLiveFilters = Record<string, YouTubeLiveFilter>
+
 export type YouTubeNotificationItem = {
   id: string
   kind: 'live' | 'post'
   channelId: string
+  channelInput: string
   channelName: string
   avatarUrl: string | null
   title: string
@@ -30,8 +35,7 @@ const API_KEY_STORAGE_KEY = 'roxy-notice:youtube-api-key'
 const READ_STORAGE_KEY = 'roxy-notice:youtube-read-items'
 const NOTIFIED_STORAGE_KEY = 'roxy-notice:youtube-notified-items'
 const LIVE_SCHEDULE_STORAGE_KEY = 'roxy-notice:youtube-live-schedules'
-const LIVE_FILTER_STORAGE_KEY = 'roxy-notice:youtube-live-filter-words'
-const LIVE_FILTER_MODE_STORAGE_KEY = 'roxy-notice:youtube-live-filter-mode'
+const LIVE_FILTER_STORAGE_KEY = 'roxy-notice:youtube-live-filters'
 
 export function loadYouTubeApiKey() {
   return localStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
@@ -109,6 +113,7 @@ async function fetchYouTubeNotifications(channels: string[], apiKey: string): Pr
           id: `youtube:${isLive || isUpcoming ? 'live' : 'post'}:${video.id}`,
           kind: isLive || isUpcoming ? 'live' : 'post',
           channelId: channel.id,
+          channelInput: input,
           channelName,
           avatarUrl,
           title: video.snippet?.title ?? 'YouTube動画',
@@ -156,29 +161,37 @@ export function saveYouTubeChannels(channels: string[]) {
   localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(channels))
 }
 
-export function loadYouTubeLiveFilterWords() {
-  return loadStringArray(LIVE_FILTER_STORAGE_KEY)
+export function loadYouTubeLiveFilters(): YouTubeLiveFilters {
+  try {
+    const value = JSON.parse(localStorage.getItem(LIVE_FILTER_STORAGE_KEY) ?? '{}')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    const entries = Object.entries(value as Record<string, unknown>).flatMap(([channel, filter]): Array<[string, YouTubeLiveFilter]> => {
+      if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return []
+      const { mode, words } = filter as { mode?: unknown; words?: unknown }
+      return [[channel, {
+        mode: mode === 'include' ? 'include' : 'exclude',
+        words: Array.isArray(words) ? words.filter((word): word is string => typeof word === 'string') : [],
+      }]]
+    })
+    return Object.fromEntries(entries)
+  } catch {
+    return {}
+  }
 }
 
-export function saveYouTubeLiveFilterWords(words: string[]) {
-  localStorage.setItem(LIVE_FILTER_STORAGE_KEY, JSON.stringify(words))
+export function saveYouTubeLiveFilters(filters: YouTubeLiveFilters) {
+  localStorage.setItem(LIVE_FILTER_STORAGE_KEY, JSON.stringify(filters))
 }
 
-export function loadYouTubeLiveFilterMode(): YouTubeLiveFilterMode {
-  return localStorage.getItem(LIVE_FILTER_MODE_STORAGE_KEY) === 'include' ? 'include' : 'exclude'
-}
-
-export function saveYouTubeLiveFilterMode(mode: YouTubeLiveFilterMode) {
-  localStorage.setItem(LIVE_FILTER_MODE_STORAGE_KEY, mode)
-}
-
-export function isHiddenYouTubeLive(item: YouTubeNotificationItem, filterWords: string[], mode: YouTubeLiveFilterMode) {
+export function isHiddenYouTubeLive(item: YouTubeNotificationItem, filters: YouTubeLiveFilters) {
   if (item.kind !== 'live') return false
-  const keywords = filterWords.map((word) => word.trim().toLocaleLowerCase('ja')).filter((word) => word.length > 0)
+  const filter = filters[item.channelInput]
+  if (!filter) return false
+  const keywords = filter.words.map((word) => word.trim().toLocaleLowerCase('ja')).filter((word) => word.length > 0)
   if (!keywords.length) return false
   const title = item.title.toLocaleLowerCase('ja')
   const matched = keywords.some((keyword) => title.includes(keyword))
-  return mode === 'include' ? !matched : matched
+  return filter.mode === 'include' ? !matched : matched
 }
 
 export function loadReadYouTubeItems() {
@@ -210,7 +223,7 @@ export function hasLiveScheduleChanged(item: YouTubeNotificationItem, previousTi
   return item.kind === 'live' && item.isUpcoming && previousTime !== undefined && previousTime !== (item.publishedText ?? '')
 }
 
-export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string, liveFilterWords: string[], liveFilterMode: YouTubeLiveFilterMode) {
+export function useYouTubeNotifications(channels: string[], pushEnabled: boolean, apiKey: string, liveFilters: YouTubeLiveFilters) {
   const [items, setItems] = useState<YouTubeNotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -268,7 +281,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       if (showLoading) setLoading(true)
       try {
         const data = await fetchYouTubeNotifications(channels, apiKey)
-        data.notifications = data.notifications.filter((item) => !isHiddenYouTubeLive(item, liveFilterWords, liveFilterMode))
+        data.notifications = data.notifications.filter((item) => !isHiddenYouTubeLive(item, liveFilters))
         if (!data.channels.length && data.warnings.length) throw new Error(data.warnings[0])
         if (cancelled || activeChannelKey.current !== channelKey) return
 
@@ -344,7 +357,7 @@ export function useYouTubeNotifications(channels: string[], pushEnabled: boolean
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [apiKey, channels, liveFilterMode, liveFilterWords, refreshVersion])
+  }, [apiKey, channels, liveFilters, refreshVersion])
 
   return { items, loading, error, warnings, lastUpdated, refresh }
 }
