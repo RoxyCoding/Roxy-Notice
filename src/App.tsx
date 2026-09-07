@@ -242,7 +242,7 @@ function App() {
   const filteredNotices = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('ja')
     return allNotices.filter((notice) => {
-      const matchesFilter = enabledCategories.includes(notice.category) && (filter === 'すべて' || notice.category === filter)
+      const matchesFilter = enabledCategories.includes(notice.category) && (notice.category === 'Splatoon' ? filter === 'Splatoon' : filter === 'すべて' || notice.category === filter)
       const matchesQuery = !normalized || `${notice.source}${notice.title}${notice.body}`.toLocaleLowerCase('ja').includes(normalized)
       return matchesFilter && matchesQuery
     })
