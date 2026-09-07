@@ -117,13 +117,32 @@ const navItems = [
 
 const filters: NoticeCategory[] = ['すべて', 'YouTube', 'X', 'ASMR', 'Splatoon']
 
+const PUSH_ENABLED_STORAGE_KEY = 'roxy-notice:push-enabled'
+
+function loadPushEnabled() {
+  try {
+    if (localStorage.getItem(PUSH_ENABLED_STORAGE_KEY) !== 'true') return false
+    return 'Notification' in window && window.Notification.permission === 'granted'
+  } catch {
+    return false
+  }
+}
+
+function savePushEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(PUSH_ENABLED_STORAGE_KEY, enabled ? 'true' : 'false')
+  } catch {
+    // 保存できない環境では次回起動時にオフへ戻る
+  }
+}
+
 function App() {
   const [notices, setNotices] = useState(initialNotices)
   const [filter, setFilter] = useState<NoticeCategory>('すべて')
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushEnabled, setPushEnabled] = useState(loadPushEnabled)
   const [inAppEnabled, setInAppEnabled] = useState(true)
   const [compactView, setCompactView] = useState(false)
   const [enabledCategories, setEnabledCategories] = useState<Array<Exclude<NoticeCategory, 'すべて'>>>(['YouTube', 'X', 'ASMR', 'Splatoon'])
@@ -432,6 +451,7 @@ function App() {
       }
     }
     setPushEnabled(enabled)
+    savePushEnabled(enabled)
   }
 
   return (
