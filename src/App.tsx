@@ -83,6 +83,7 @@ type Notice = {
   accent: string
   category: Exclude<NoticeCategory, 'すべて'>
   time: string
+  sortAt: number
   title: string
   body: string
   unread: boolean
@@ -165,6 +166,7 @@ function App() {
     accent: '#0f1419',
     category: 'YouTube',
     time: item.publishedText ?? (item.isLive ? '配信中' : item.isUpcoming ? '配信予定' : '新着'),
+    sortAt: Date.parse(item.publishedAt ?? '') || 0,
     title: item.title,
     body: item.body,
     unread: isRecentYouTubeItem(item) && !readYouTubeItems.has(getYouTubeReadId(item)),
@@ -181,6 +183,7 @@ function App() {
     accent: '#0f1419',
     category: 'X',
     time: formatXTime(item.createdAt),
+    sortAt: Date.parse(item.createdAt) || 0,
     title: item.text || 'メディアを投稿しました',
     body: '',
     unread: isRecentXItem(item) && !readXItems.has(item.id),
@@ -197,6 +200,7 @@ function App() {
     accent: '#0f1419',
     category: 'ASMR',
     time: formatAsmrTime(item.publishedAt),
+    sortAt: Date.parse(item.publishedAt ?? '') || 0,
     title: item.title,
     body: '',
     unread: isRecentAsmrItem(item) && !readAsmrItems.has(item.id),
@@ -222,6 +226,7 @@ function App() {
     accent: '#0f1419',
     category: 'Splatoon',
     time: formatSplatoonEnd(splatoonFeed.items[0].endTime),
+    sortAt: Date.now(),
     title: '現在のステージ',
     body: '',
     unread: false,
@@ -231,7 +236,7 @@ function App() {
     splatoonDetails: { rotations: splatoonFeed.items },
   }] : [], [splatoonFeed.items])
 
-  const allNotices = useMemo(() => [...youtubeNotices, ...xNotices, ...asmrNotices, ...splatoonNotices, ...notices], [asmrNotices, notices, splatoonNotices, xNotices, youtubeNotices])
+  const allNotices = useMemo(() => [...youtubeNotices, ...xNotices, ...asmrNotices, ...splatoonNotices, ...notices].sort((a, b) => b.sortAt - a.sortAt), [asmrNotices, notices, splatoonNotices, xNotices, youtubeNotices])
   const nextYouTubeLive = youtubeFeed.items.find((item) => item.kind === 'live')
 
   const filteredNotices = useMemo(() => {

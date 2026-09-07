@@ -18,6 +18,7 @@ export type YouTubeNotificationItem = {
   url: string
   thumbnailUrl: string | null
   publishedText: string | null
+  publishedAt: string | null
   isLive: boolean
   isUpcoming: boolean
 }
@@ -121,6 +122,7 @@ async function fetchYouTubeNotifications(channels: string[], apiKey: string): Pr
           url: `https://www.youtube.com/watch?v=${encodeURIComponent(video.id)}`,
           thumbnailUrl: videoThumbs?.high?.url ?? videoThumbs?.medium?.url ?? videoThumbs?.default?.url ?? null,
           publishedText: published ? new Date(published).toLocaleString('ja-JP') : null,
+          publishedAt: published,
           isLive,
           isUpcoming,
         })
