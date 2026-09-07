@@ -166,7 +166,7 @@ function App() {
     accent: '#0f1419',
     category: 'YouTube',
     time: item.publishedText ?? (item.isLive ? '配信中' : item.isUpcoming ? '配信予定' : '新着'),
-    sortAt: Date.parse(item.publishedAt ?? '') || 0,
+    sortAt: Date.parse(item.postedAt ?? '') || 0,
     title: item.title,
     body: item.body,
     unread: isRecentYouTubeItem(item) && !readYouTubeItems.has(getYouTubeReadId(item)),
